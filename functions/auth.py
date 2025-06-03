@@ -1,38 +1,36 @@
 import streamlit as st
 import streamlit_authenticator as stauth
-import yaml
-from yaml.loader import SafeLoader
 
 
-# main login function
 def login():
-    # Load the config
-    with open("./functions/user_credentials.yml") as file:
-        config = yaml.load(file, Loader=SafeLoader)
+    # Load credentials from st.secrets
+    credentials = {
+        "usernames": {
+            username: {"name": name, "password": pwd}
+            for username, name, pwd in zip(
+                st.secrets.credentials.usernames,
+                st.secrets.credentials.names,
+                st.secrets.credentials.passwords,
+            )
+        }
+    }
 
-    stauth.Hasher.hash_passwords(config["credentials"])
-    with open("./functions/user_credentials.yml", "w") as file:
-        yaml.dump(config, file, default_flow_style=False)
-
+    # Setup authenticator
     authenticator = stauth.Authenticate(
-        config["credentials"],
-        config["cookie"]["name"],
-        config["cookie"]["key"],
-        config["cookie"]["expiry_days"],
+        credentials,
+        cookie_name="my_app_login",  # persistent login
+        cookie_key="auth",  # session key
+        cookie_expiry_days=7,
     )
 
-    try:
-        authenticator.login("main")
-    except Exception as e:
-        st.error(e)
+    # authenticate
+    login_result = authenticator.login("main")
 
-    # All the authentication info is stored in the session_state
-    if st.session_state["authentication_status"]:
-        st.session_state["auth"] = authenticator
+    # Handle case where login returns None
     if st.session_state["authentication_status"] == False:
-        st.error("Username/password is incorrect")
-        # Stop the rendering if the user isn't connected
+        st.error("Username or password is incorrect")
         st.stop()
     elif st.session_state["authentication_status"] == None:
-        # Stop the rendering if the user isn't connected
         st.stop()
+    elif st.session_state["authentication_status"]:
+        st.session_state["auth"] = authenticator

@@ -1,8 +1,5 @@
 import os
 import streamlit as st
-import streamlit_authenticator as stauth
-from yaml.loader import SafeLoader
-import yaml
 
 
 def default_style() -> None:
