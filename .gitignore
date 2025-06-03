@@ -149,3 +149,4 @@ pyrightconfig.json
 
 # individual
 .streamlit/secrets.toml
+.streamlit/pw.py
