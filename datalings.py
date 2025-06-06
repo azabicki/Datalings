@@ -3,7 +3,7 @@ import functions.utils as ut
 import functions.auth as auth
 import functions.database as db
 
-st.set_page_config(page_title="Standings")  # , layout="wide")
+st.set_page_config(page_title="Standings", layout="wide")
 
 # auth
 auth.login()

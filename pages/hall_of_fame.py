@@ -2,7 +2,7 @@ import streamlit as st
 import functions.utils as ut
 import functions.auth as auth
 
-st.set_page_config(page_title="Hall of Fame")  # , layout="wide")
+st.set_page_config(page_title="Hall of Fame", layout="wide")
 
 # auth
 auth.login()
