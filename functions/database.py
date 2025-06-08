@@ -218,22 +218,30 @@ def get_game_setting_list_items(setting_id: int) -> pd.DataFrame:
         return df
     except Exception as e:
         logger.error(f"Error fetching list items for setting {setting_id}: {e}")
-        st.error(f"Error fetching list items: {e}")
+        # Don't show error to user, just return empty DataFrame
         return pd.DataFrame()
 
 
 def add_game_setting_to_database(
-    name: str, note: str = "", setting_type: str = "number"
+    name: str, note: str = "", setting_type: str = "text"
 ) -> int:
     """Add a new game setting to the database. Returns the setting ID if successful, 0 if failed."""
     conn = st.connection("mysql", type="sql")
     try:
+        # Set list-type settings as inactive by default
+        is_active = 0 if setting_type == "list" else 1
+
         with conn.session as session:
             session.execute(
                 text(
-                    "INSERT INTO datalings_game_settings (name, note, type) VALUES (:name, :note, :type)"
+                    "INSERT INTO datalings_game_settings (name, note, type, is_active) VALUES (:name, :note, :type, :is_active)"
                 ),
-                {"name": name, "note": note, "type": setting_type},
+                {
+                    "name": name,
+                    "note": note,
+                    "type": setting_type,
+                    "is_active": is_active,
+                },
             )
             session.commit()
             # Get the last inserted ID using a separate query
@@ -275,6 +283,24 @@ def add_list_item_to_setting(setting_id: int, value: str, order_index: int = 0) 
         return False
 
 
+def delete_list_item_from_setting(item_id: int) -> bool:
+    """Delete a list item from a game setting."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        with conn.session as session:
+            session.execute(
+                text("DELETE FROM datalings_game_setting_list_items WHERE id = :id"),
+                {"id": item_id},
+            )
+            session.commit()
+        logger.info(f"List item ID {item_id} deleted successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting list item ID {item_id}: {e}")
+        st.error(f"Error deleting list item: {e}")
+        return False
+
+
 def update_game_setting_status_in_database(setting_id: int, is_active: bool) -> bool:
     """Update a game setting's active status."""
     conn = st.connection("mysql", type="sql")
@@ -299,7 +325,7 @@ def update_game_setting_status_in_database(setting_id: int, is_active: bool) -> 
 
 
 def update_game_setting_in_database(
-    setting_id: int, new_name: str, new_type: str
+    setting_id: int, new_name: str, new_type: str, new_note: str
 ) -> bool:
     """Update a game setting's name and type."""
     conn = st.connection("mysql", type="sql")
@@ -307,9 +333,14 @@ def update_game_setting_in_database(
         with conn.session as session:
             session.execute(
                 text(
-                    "UPDATE datalings_game_settings SET name = :name, type = :type WHERE id = :id"
+                    "UPDATE datalings_game_settings SET name = :name, type = :type, note = :note WHERE id = :id"
                 ),
-                {"name": new_name, "type": new_type, "id": setting_id},
+                {
+                    "name": new_name,
+                    "type": new_type,
+                    "note": new_note,
+                    "id": setting_id,
+                },
             )
             session.commit()
         logger.info(
