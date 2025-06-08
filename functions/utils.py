@@ -16,8 +16,8 @@ def default_style() -> None:
     css = """
     <style>
         [data-testid="stSidebar"]{
-            min-width: 280px;
-            max-width: 280px;
+            min-width: 210px;
+            max-width: 210px;
         }
     </style>
     """

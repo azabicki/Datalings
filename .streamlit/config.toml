@@ -8,17 +8,19 @@ headless = true
 [theme]
 # Primary accent for interactive elements
 # primaryColor = "#8b8a85"
-primaryColor = "#bd3f19"
+# primaryColor = "#bd3f19"
+primaryColor = "#8A784E"
 
 # Background color for the main content area
-backgroundColor = "#fde7cd"
+# backgroundColor = "#fde7cd"
+backgroundColor = "#AEC8A4"
 
 # Background color for sidebar and most interactive widgets
-secondaryBackgroundColor = "#977569"
+secondaryBackgroundColor = "#E7EFC7"
 
 # Color used for almost all text
 # textColor = '#645e5b'
-textColor = '#002a4b'
+textColor = '#3B3B1A'
 
 # Font family for all text in the app, except code blocks
 # Accepted values (serif | sans serif | monospace)
@@ -41,7 +43,7 @@ showWidgetBorder = false
 
 # Sets the root font size (in pixels) for the app, which determines the
 # overall scale of text and UI elements. The default base font size is 16.
-baseFontSize = 20
+baseFontSize = 16
 
 # Whether to show a vertical separator between the sidebar and the main
 # content area.
