@@ -169,8 +169,8 @@ def player_exists(name: str) -> bool:
     conn = st.connection("mysql", type="sql")
     try:
         result = conn.query(
-            "SELECT COUNT(*) as count FROM datalings_players WHERE name = %s",
-            params=(name,),
+            "SELECT COUNT(*) as count FROM datalings_players WHERE name = :name",
+            params={"name": name},
             ttl=60,
         )
         return result["count"].iloc[0] > 0
@@ -211,8 +211,8 @@ def get_game_setting_list_items(setting_id: int) -> pd.DataFrame:
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_game_setting_list_items WHERE setting_id = %s ORDER BY order_index, value",
-            params=(setting_id,),
+            "SELECT * FROM datalings_game_setting_list_items WHERE setting_id = :setting_id ORDER BY order_index, value",
+            params={"setting_id": setting_id},
             ttl=0,
         )
         return df
@@ -362,8 +362,8 @@ def game_setting_exists_except_id(name: str, setting_id: int) -> bool:
     conn = st.connection("mysql", type="sql")
     try:
         result = conn.query(
-            "SELECT COUNT(*) as count FROM datalings_game_settings WHERE name = %s AND id != %s",
-            params=(name, setting_id),
+            "SELECT COUNT(*) as count FROM datalings_game_settings WHERE name = :name AND id != :setting_id",
+            params={"name": name, "setting_id": setting_id},
             ttl=60,
         )
         return result["count"].iloc[0] > 0

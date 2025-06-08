@@ -107,10 +107,12 @@ The `functions/database.py` module provides the following functions:
 - `get_all_game_settings()`: Returns all game settings (active and inactive)
 - `get_active_game_settings()`: Returns only active game settings
 - `get_game_setting_list_items(setting_id)`: Returns all list items for a specific setting
-- `add_game_setting_to_database(name, note, setting_type)`: Adds a new game setting
+- `add_game_setting_to_database(name, note, setting_type)`: Adds a new game setting (list types created as inactive)
 - `add_list_item_to_setting(setting_id, value, order_index)`: Adds an item to a list-type setting
+- `delete_list_item_from_setting(item_id)`: Removes an item from a list-type setting
+- `update_game_setting_in_database(setting_id, new_name, new_type)`: Updates a setting's name and type
 - `update_game_setting_status_in_database(setting_id, is_active)`: Updates a setting's active status
-- `game_setting_exists(name)`: Checks if a game setting with given name exists
+- `game_setting_exists_except_id(name, setting_id)`: Checks if a game setting name exists (excluding specific ID)
 
 ## Usage
 
@@ -121,12 +123,13 @@ The database is automatically initialized when the application starts. The Setti
 2. **Manage Players Tab**: View, edit names, and activate/deactivate existing players
 
 ### Game Settings Management
-1. **Add Tab**: Create new game settings with different data types:
+1. **Overview Tab**: View all settings with summary statistics
+2. **Manage Tab**: Edit settings, manage list items, and activate/deactivate settings
+3. **Create New Tab**: Create new game settings with different data types:
    - **Text**: Simple text values
    - **Number**: Numeric values
    - **Boolean**: True/false values
-   - **List**: Predefined list of options (items added separately after creation)
-2. **Manage Tab**: View, activate/deactivate, and manage existing game settings
+   - **List**: Predefined list of options (created as inactive, items added via edit functionality)
 
 ## Features
 
@@ -139,14 +142,17 @@ The database is automatically initialized when the application starts. The Setti
 ### Game Settings Management
 - **Multiple Data Types**: Support for text, number, boolean, and list settings
 - **Active/Inactive Status**: Settings can be activated/deactivated like players
+- **Smart Activation**: List settings cannot be activated until they have at least one item
 - **Soft Delete**: Settings can be deactivated instead of deleted to preserve historical data
-- **List Management**: For list-type settings, easily add/remove individual items
-- **Unique Names**: Setting names must be unique across the system
+- **List Management**: For list-type settings, easily add/remove individual items via edit interface
+- **Unique Names**: Setting names must be unique across the system (validated during editing)
 - **Optional Notes**: Add descriptions to clarify setting purposes
 - **Ordered Lists**: List items maintain their order through the order_index field
+- **User-Friendly Messages**: Clear guidance when list settings need items added
 
 ## Security Notes
 
 - Database credentials are stored in `secrets.toml` (not version controlled)
-- All database operations use parameterized queries to prevent SQL injection
-- Player names are validated and sanitized before database operations
+- All database operations use parameterized queries with named parameters to prevent SQL injection
+- Player names and setting names are validated and sanitized before database operations
+- Duplicate name checking prevents data conflicts during editing

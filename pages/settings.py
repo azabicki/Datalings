@@ -74,7 +74,7 @@ with st.container(border=True):
         if not players_df.empty:
             # Display players in a more user-friendly way
             for index, player in players_df.iterrows():
-                col1, col2, col3 = st.columns([3, 2, 2])
+                col1, col2, col3 = st.columns([3, 2, 2], vertical_alignment="center")
 
                 player_id = int(player["id"])
                 player_name = str(player["name"])
@@ -129,7 +129,9 @@ with st.container(border=True):
                 if st.session_state.get(f"editing_{player_id}", False):
                     with st.form(f"edit_form_{player_id}", border=False):
                         new_name = st.text_input(
-                            "New name:", value=player_name, key=f"edit_name_{player_id}"
+                            "New name:",
+                            value=player_name,
+                            key=f"edit_name_{player_id}",
                         )
                         col_save, col_cancel = st.columns(2)
                         with col_save:
@@ -176,7 +178,6 @@ with st.container(border=True):
             if submit_button:
                 if new_player_name.strip():
                     if db.add_player_to_database(new_player_name.strip()):
-                        st.success(f"Player '{new_player_name}' added successfully!")
                         # Increment form counter to reset the form
                         st.session_state.form_counter += 1
                         st.rerun()
@@ -274,7 +275,7 @@ with st.container(border=True):
                     else True
                 )
 
-                col1, col2, col3 = st.columns([2, 1, 1])
+                col1, col2, col3 = st.columns([2, 1, 1], vertical_alignment="center")
                 with col1:
                     status_emoji = "✅" if is_active else "❌"
                     type_emoji = {
@@ -412,28 +413,29 @@ with st.container(border=True):
 
                         # Get current list items
                         list_items_df = db.get_game_setting_list_items(setting_id)
-                        print(list_items_df)
 
                         # Show current items
                         if len(list_items_df) > 0:
-                            st.write("**Current items:**")
                             for idx, item_row in list_items_df.iterrows():
-                                col_item, col_remove = st.columns([4, 1])
+                                col_item, col_remove = st.columns([2, 1])
                                 with col_item:
                                     st.write(f"• {item_row['value']}")
                                 with col_remove:
                                     if st.button(
-                                        "🗑️",
+                                        "delete",
                                         key=f"remove_item_{setting_id}_{item_row['id']}",
+                                        icon=":material/delete:",
+                                        use_container_width=True,
                                         help="Remove item",
                                     ):
                                         if db.delete_list_item_from_setting(
                                             int(item_row["id"])
                                         ):
-                                            st.success(f"Item removed successfully!")
                                             st.rerun()
                         else:
-                            st.markdown("_No items added yet._")
+                            st.info(
+                                f"💡 Activate  _**{setting_name}**_ once you've added all desired list items."
+                            )
 
                         # Add new item
                         col_input, col_add = st.columns(
@@ -456,8 +458,7 @@ with st.container(border=True):
                                 key=f"add_item_{setting_id}",
                                 icon=":material/add:",
                             ):
-                                print("XXX: " + new_item)
-                                if new_item.strip():
+                                if new_item and new_item.strip():
                                     # Get the next order index
                                     next_order = len(list_items_df)
                                     if db.add_list_item_to_setting(
@@ -466,19 +467,9 @@ with st.container(border=True):
                                         st.session_state[new_item_key] = (
                                             ""  # Clear input
                                         )
-                                        st.success(
-                                            f"Added '{new_item.strip()}' to list!"
-                                        )
                                         st.rerun()
                                 else:
                                     st.error("Please enter a valid item.")
-
-                # Show activation hint for empty lists
-                if setting_type == "list" and not is_active:
-                    st.info(
-                        f"💡 Activate  _**{setting_name}**_ once you've added all desired list items."
-                    )
-
                     st.divider()
 
         else:
@@ -522,12 +513,6 @@ with st.container(border=True):
                 height=80,
             )
 
-            # Note for list type
-            if setting_type == "list":
-                st.info(
-                    "💡 List-type settings are created as **inactive** by default. After creation, go to the Manage tab to add list items, then activate the setting."
-                )
-
             # Submit button for the entire form
             submit_button = st.form_submit_button(
                 "Create Game Setting", use_container_width=True, type="primary"
@@ -543,12 +528,13 @@ with st.container(border=True):
                     )
 
                     if setting_id > 0:
-                        st.success(
-                            f"Game setting '{new_setting_name}' added successfully!"
-                        )
-
                         # Reset form
                         st.session_state.settings_form_counter += 1
                         st.rerun()
                 else:
                     st.error("Please enter a valid setting name.")
+
+            # info about list-type settings
+            st.write(
+                "> :small[**NOTE:** _List-type settings_ are created as **inactive** by default. After creation, go to the Manage tab to add list items, then activate the setting.]"
+            )
