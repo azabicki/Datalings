@@ -63,7 +63,10 @@ def add_player_to_database(name: str) -> bool:
     conn = st.connection("mysql", type="sql")
     try:
         with conn.session as session:
-            session.execute(text("INSERT INTO datalings_players (name) VALUES (:name)"), {"name": name})
+            session.execute(
+                text("INSERT INTO datalings_players (name) VALUES (:name)"),
+                {"name": name},
+            )
             session.commit()
         logger.info(f"Player '{name}' added successfully")
         return True

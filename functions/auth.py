@@ -24,7 +24,7 @@ def login():
     )
 
     # authenticate
-    login_result = authenticator.login("main")
+    authenticator.login("main")
 
     # Handle case where login returns None
     if st.session_state["authentication_status"] == False:

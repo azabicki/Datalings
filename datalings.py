@@ -16,18 +16,19 @@ ut.create_sidebar()
 db.init_players_table()
 
 # init app
-st.header("Who should be thrown under the bus?")
+st.markdown("_...work in progress..._")
+# st.header("Who should be thrown under the bus?")
 
 
-# Get active players from database
-st.divider()
-players_df = db.get_active_players()
+# # Get active players from database
+# st.divider()
+# players_df = db.get_active_players()
 
-if not players_df.empty:
-    st.subheader("Active Players")
-    for index, player in players_df.iterrows():
-        player_name = str(player["name"])
-        created_date = str(player["created_at"])[:10]  # Extract date part
-        st.write(f"🎮 **{player_name}** - *Player since {created_date}*")
-else:
-    st.info("No active players found. Add some players in the Settings page.")
+# if not players_df.empty:
+#     st.subheader("Active Players")
+#     for index, player in players_df.iterrows():
+#         player_name = str(player["name"])
+#         created_date = str(player["created_at"])[:10]  # Extract date part
+#         st.write(f"🎮 **{player_name}** - *Player since {created_date}*")
+# else:
+#     st.info("No active players found. Add some players in the Settings page.")
