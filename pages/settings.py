@@ -414,24 +414,53 @@ with st.container(border=True):
                         # Get current list items
                         list_items_df = db.get_game_setting_list_items(setting_id)
 
-                        # Show current items
+                        # Show current items for editing
                         if len(list_items_df) > 0:
                             for idx, item_row in list_items_df.iterrows():
-                                col_item, col_remove = st.columns([2, 1])
+                                col_item, col_edit = st.columns([3, 1])
+                                item_id = int(item_row["id"])
+                                item_value = str(item_row["value"])
+
                                 with col_item:
-                                    st.write(f"• {item_row['value']}")
-                                with col_remove:
+                                    # Use text input for editing
+                                    edit_key = f"edit_item_{setting_id}_{item_id}"
+                                    if edit_key not in st.session_state:
+                                        st.session_state[edit_key] = item_value
+
+                                    new_value = st.text_input(
+                                        f"Item {idx + 1}:",
+                                        value=st.session_state[edit_key],
+                                        key=f"input_{edit_key}",
+                                        label_visibility="collapsed",
+                                    )
+
+                                with col_edit:
                                     if st.button(
-                                        "delete",
-                                        key=f"remove_item_{setting_id}_{item_row['id']}",
-                                        icon=":material/delete:",
+                                        "Rename",
+                                        key=f"rename_item_{setting_id}_{item_id}",
+                                        type="secondary",
+                                        icon=":material/edit_note:",
                                         use_container_width=True,
-                                        help="Remove item",
+                                        help="Update item name",
                                     ):
-                                        if db.delete_list_item_from_setting(
-                                            int(item_row["id"])
+                                        if (
+                                            new_value
+                                            and new_value.strip()
+                                            and new_value.strip() != item_value
                                         ):
-                                            st.rerun()
+                                            if db.update_list_item_in_setting(
+                                                item_id, new_value.strip()
+                                            ):
+                                                st.session_state[edit_key] = (
+                                                    new_value.strip()
+                                                )
+                                                st.rerun()
+                                            elif not new_value or not new_value.strip():
+                                                st.error(
+                                                    "Please enter a valid item name."
+                                                )
+                                        else:
+                                            st.info("No changes made.")
                         else:
                             st.info(
                                 f"💡 Activate  _**{setting_name}**_ once you've added all desired list items."
@@ -441,6 +470,7 @@ with st.container(border=True):
                         col_input, col_add = st.columns(
                             [3, 1], vertical_alignment="bottom"
                         )
+
                         with col_input:
                             new_item_key = f"new_item_{setting_id}"
                             if new_item_key not in st.session_state:
@@ -457,6 +487,7 @@ with st.container(border=True):
                                 "Add",
                                 key=f"add_item_{setting_id}",
                                 icon=":material/add:",
+                                use_container_width=True,
                             ):
                                 if new_item and new_item.strip():
                                     # Get the next order index

@@ -283,21 +283,25 @@ def add_list_item_to_setting(setting_id: int, value: str, order_index: int = 0) 
         return False
 
 
-def delete_list_item_from_setting(item_id: int) -> bool:
-    """Delete a list item from a game setting."""
+def update_list_item_in_setting(item_id: int, new_value: str) -> bool:
+    """Update a list item's value in a game setting."""
     conn = st.connection("mysql", type="sql")
     try:
         with conn.session as session:
             session.execute(
-                text("DELETE FROM datalings_game_setting_list_items WHERE id = :id"),
-                {"id": item_id},
+                text("UPDATE datalings_game_setting_list_items SET value = :value WHERE id = :id"),
+                {"value": new_value, "id": item_id},
             )
             session.commit()
-        logger.info(f"List item ID {item_id} deleted successfully")
+        logger.info(f"List item ID {item_id} updated to '{new_value}' successfully")
         return True
     except Exception as e:
-        logger.error(f"Error deleting list item ID {item_id}: {e}")
-        st.error(f"Error deleting list item: {e}")
+        logger.error(f"Error updating list item ID {item_id}: {e}")
+        error_msg = str(e)
+        if "Duplicate entry" in error_msg or "UNIQUE constraint" in error_msg:
+            st.error(f"List item '{new_value}' already exists for this setting!")
+        else:
+            st.error(f"Error updating list item: {error_msg}")
         return False
 
 

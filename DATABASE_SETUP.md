@@ -109,7 +109,7 @@ The `functions/database.py` module provides the following functions:
 - `get_game_setting_list_items(setting_id)`: Returns all list items for a specific setting
 - `add_game_setting_to_database(name, note, setting_type)`: Adds a new game setting (list types created as inactive)
 - `add_list_item_to_setting(setting_id, value, order_index)`: Adds an item to a list-type setting
-- `delete_list_item_from_setting(item_id)`: Removes an item from a list-type setting
+- `update_list_item_in_setting(item_id, new_value)`: Updates/renames an item in a list-type setting
 - `update_game_setting_in_database(setting_id, new_name, new_type)`: Updates a setting's name and type
 - `update_game_setting_status_in_database(setting_id, is_active)`: Updates a setting's active status
 - `game_setting_exists_except_id(name, setting_id)`: Checks if a game setting name exists (excluding specific ID)
@@ -144,7 +144,8 @@ The database is automatically initialized when the application starts. The Setti
 - **Active/Inactive Status**: Settings can be activated/deactivated like players
 - **Smart Activation**: List settings cannot be activated until they have at least one item
 - **Soft Delete**: Settings can be deactivated instead of deleted to preserve historical data
-- **List Management**: For list-type settings, easily add/remove individual items via edit interface
+- **Item Persistence**: List items can be renamed but never deleted to maintain data integrity
+- **List Management**: For list-type settings, easily add/rename individual items via edit interface
 - **Unique Names**: Setting names must be unique across the system (validated during editing)
 - **Optional Notes**: Add descriptions to clarify setting purposes
 - **Ordered Lists**: List items maintain their order through the order_index field
