@@ -583,16 +583,15 @@ def add_game_to_database(
     conn = st.connection("mysql", type="sql")
     try:
         with conn.session as session:
-            # Insert game
+            # Insert game and get ID in same transaction
             session.execute(
                 text(
                     "INSERT INTO datalings_games (game_date, notes) VALUES (:game_date, :notes)"
                 ),
                 {"game_date": game_date, "notes": notes},
             )
-            session.commit()
 
-            # Get the game ID using a separate query
+            # Get the game ID immediately after insertion
             game_id_result = session.execute(text("SELECT LAST_INSERT_ID()"))
             game_id = game_id_result.scalar()
             logger.info(f"Game inserted with ID: {game_id}")
@@ -600,10 +599,42 @@ def add_game_to_database(
             if not game_id or game_id == 0:
                 logger.error("Failed to get valid game ID after insertion")
                 st.error("Failed to create game record")
+                session.rollback()
+                return False
+
+            # Verify the game was actually inserted
+            verify_result = session.execute(
+                text("SELECT id FROM datalings_games WHERE id = :game_id"),
+                {"game_id": game_id},
+            ).fetchone()
+
+            if not verify_result:
+                logger.error(f"Game ID {game_id} not found in database after insertion")
+                st.error("Failed to verify game creation")
+                session.rollback()
+                return False
+
+            # Debug: Log player scores before insertion
+            logger.info(
+                f"Attempting to insert scores for game {game_id}: {player_scores}"
+            )
+
+            # Check for duplicates in player_scores dictionary
+            player_ids = list(player_scores.keys())
+            unique_player_ids = set(player_ids)
+            if len(player_ids) != len(unique_player_ids):
+                logger.error(
+                    f"Duplicate player IDs found in player_scores: {player_ids}"
+                )
+                st.error(
+                    "Duplicate players detected in scores. Please refresh and try again."
+                )
+                session.rollback()
                 return False
 
             # Insert player scores
             for player_id, score in player_scores.items():
+                logger.info(f"Inserting score for player {player_id}: {score}")
                 session.execute(
                     text(
                         "INSERT INTO datalings_game_scores (game_id, player_id, score) VALUES (:game_id, :player_id, :score)"
@@ -621,56 +652,59 @@ def add_game_to_database(
                     {"setting_id": setting_id},
                 ).fetchone()
 
-                if setting_info:
-                    setting_type = setting_info[0]
+                if not setting_info:
+                    logger.warning(f"Setting ID {setting_id} not found, skipping")
+                    continue
 
-                    # Determine which value column to use
-                    if setting_type == "list":
-                        session.execute(
-                            text(
-                                "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_text) VALUES (:game_id, :setting_id, :value)"
-                            ),
-                            {
-                                "game_id": game_id,
-                                "setting_id": setting_id,
-                                "value": value,
-                            },
-                        )
-                    elif setting_type == "number":
-                        session.execute(
-                            text(
-                                "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_number) VALUES (:game_id, :setting_id, :value)"
-                            ),
-                            {
-                                "game_id": game_id,
-                                "setting_id": setting_id,
-                                "value": int(value),
-                            },
-                        )
-                    elif setting_type == "boolean":
-                        bool_value = 1 if str(value).lower() == "true" else 0
-                        session.execute(
-                            text(
-                                "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_boolean) VALUES (:game_id, :setting_id, :value)"
-                            ),
-                            {
-                                "game_id": game_id,
-                                "setting_id": setting_id,
-                                "value": bool_value,
-                            },
-                        )
-                    elif setting_type == "time":
-                        session.execute(
-                            text(
-                                "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_time_minutes) VALUES (:game_id, :setting_id, :value)"
-                            ),
-                            {
-                                "game_id": game_id,
-                                "setting_id": setting_id,
-                                "value": int(value),
-                            },
-                        )
+                setting_type = setting_info[0]
 
+                if setting_type == "number":
+                    session.execute(
+                        text(
+                            "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_number) VALUES (:game_id, :setting_id, :value)"
+                        ),
+                        {
+                            "game_id": game_id,
+                            "setting_id": setting_id,
+                            "value": int(value),
+                        },
+                    )
+                elif setting_type == "boolean":
+                    bool_value = 1 if str(value).lower() == "true" else 0
+                    session.execute(
+                        text(
+                            "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_boolean) VALUES (:game_id, :setting_id, :value)"
+                        ),
+                        {
+                            "game_id": game_id,
+                            "setting_id": setting_id,
+                            "value": bool_value,
+                        },
+                    )
+                elif setting_type == "time":
+                    session.execute(
+                        text(
+                            "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_time_minutes) VALUES (:game_id, :setting_id, :value)"
+                        ),
+                        {
+                            "game_id": game_id,
+                            "setting_id": setting_id,
+                            "value": int(value),
+                        },
+                    )
+                elif setting_type == "list":
+                    session.execute(
+                        text(
+                            "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_text) VALUES (:game_id, :setting_id, :value)"
+                        ),
+                        {
+                            "game_id": game_id,
+                            "setting_id": setting_id,
+                            "value": str(value),
+                        },
+                    )
+
+            # Commit all changes at once
             session.commit()
 
         logger.info(f"Game added successfully with ID {game_id}")
@@ -723,12 +757,12 @@ def get_game_details(game_id: int) -> dict:
         # Get setting values (ordered by setting creation order to maintain consistency)
         settings_df = conn.query(
             """
-            SELECT sv.setting_id, gs.name as setting_name, gs.type as setting_type,
+            SELECT sv.setting_id, gs.name as setting_name, gs.type as setting_type, gs.position,
                    sv.value_text, sv.value_number, sv.value_boolean, sv.value_time_minutes
             FROM datalings_game_setting_values sv
             JOIN datalings_game_settings gs ON sv.setting_id = gs.id
             WHERE sv.game_id = :game_id
-            ORDER BY gs.name
+            ORDER BY gs.position
         """,
             params={"game_id": game_id},
             ttl=0,

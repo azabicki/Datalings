@@ -167,7 +167,7 @@ with tab1:
                         with col1:
                             # Date input
                             current_date = (
-                                db.parse_german_date(game_date_str) or date.today()
+                                db.parse_german_date(str(game_date_str)) or date.today()
                             )
                             edit_game_date = st.date_input(
                                 "Game Date",
@@ -337,7 +337,6 @@ with tab1:
                                 edit_setting_values,
                                 edit_notes or "",
                             ):
-                                st.success("Game updated successfully!")
                                 st.session_state[f"editing_game_{game_id}"] = False
                                 st.rerun()
 
@@ -446,10 +445,6 @@ with tab2:
                                     setting_values[setting_id] = str(int(value))
 
                             elif setting_type == "boolean":
-                                # value = st.toggle(
-                                #     setting_name,
-                                #     key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
-                                # )
                                 value = st.checkbox(
                                     setting_name,
                                     key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
@@ -499,14 +494,29 @@ with tab2:
         )
 
         if submit_game:
+            # Prevent double submission
+            submission_key = f"submitting_game_{st.session_state.game_form_counter}"
+            if submission_key in st.session_state:
+                st.warning("Game submission in progress...")
+                st.stop()
+
+            # Set submission flag
+            st.session_state[submission_key] = True
+
             # Validate that at least one player has a score
             non_zero_scores = [score for score in player_scores.values() if score != 0]
             if len(non_zero_scores) == 0:
+                del st.session_state[submission_key]
                 st.warning("At least one player should have a non-zero score.")
             else:
                 if db.add_game_to_database(
                     game_date, player_scores, setting_values, notes
                 ):
-                    st.success("Game recorded successfully!")
+                    # Clean up submission flag
+                    del st.session_state[submission_key]
+                    # Increment form counter to reset form
                     st.session_state.game_form_counter += 1
                     st.rerun()
+                else:
+                    # Clean up submission flag on failure
+                    del st.session_state[submission_key]
