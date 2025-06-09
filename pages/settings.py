@@ -30,34 +30,43 @@ with st.container(border=True):
     # overview of players
     with tab1:
         if not players_df.empty:
-            # Summary statistics first
-            total_players = len(players_df)
-            active_players = len(players_df[players_df["is_active"] == 1])
-            inactive_players = total_players - active_players
+            players_df_active = players_df[players_df["is_active"] == 1]
+            players_df_inactive = players_df[players_df["is_active"] == 0]
 
+            # Summary statistics first
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Total Players", total_players, border=True)
+                st.metric("Total Players", len(players_df), border=True)
             with col2:
-                st.metric("Active Players", active_players, border=True)
+                st.metric("Active Players", len(players_df_active), border=True)
             with col3:
-                st.metric("Inactive Players", inactive_players, border=True)
+                st.metric("Inactive Players", len(players_df_inactive), border=True)
 
-            # Display players in a more user-friendly way
-            for index, player in players_df.iterrows():
-                col1, col2, col3 = st.columns([2, 1, 1])
+            # display ACTIVE players
+            if len(players_df_active) > 0:
+                for row_start in range(0, len(players_df_active), 2):
+                    player_cols = st.columns([1, 2, 3], vertical_alignment="center")
+                    with player_cols[0]:
+                        st.write("**active**:" if row_start == 0 else "")
+                    for col_idx in range(2):
+                        player_idx = row_start + col_idx
+                        if player_idx < len(players_df_active):
+                            with player_cols[col_idx + 1]:
+                                player = players_df_active.iloc[player_idx]
+                                st.markdown(f"#### ✅ {player["name"]}")
 
-                player_id = int(player["id"])
-                player_name = str(player["name"])
-                is_active = bool(player["is_active"])
-
-                with col1:
-                    status_emoji = "✅" if is_active else "❌"
-                    # Use markdown with larger font size for player name and strikethrough for inactive
-                    if is_active:
-                        st.markdown(f"#### {status_emoji} {player_name}")
-                    else:
-                        st.markdown(f"#### {status_emoji} ~~{player_name}~~")
+            # display INACTIVE players
+            if len(players_df_inactive) > 0:
+                for row_start in range(0, len(players_df_inactive), 2):
+                    player_cols = st.columns([1, 2, 3], vertical_alignment="center")
+                    with player_cols[0]:
+                        st.write("**inactive**:" if row_start == 0 else "")
+                    for col_idx in range(2):
+                        player_idx = row_start + col_idx
+                        if player_idx < len(players_df_inactive):
+                            with player_cols[col_idx + 1]:
+                                player = players_df_inactive.iloc[player_idx]
+                                st.markdown(f"#### ❌ ~~{player["name"]}~~")
 
         else:
             st.info(
@@ -181,8 +190,8 @@ with st.container(border=True):
                 else:
                     st.error("Please enter a valid player name.")
 
-# Game-Settings section
 ut.h_spacer(1)
+# Game-Settings section
 with st.container(border=True):
     st.header("Game Settings")
 
@@ -209,7 +218,9 @@ with st.container(border=True):
             for index, setting in settings_df.iterrows():
                 setting_id = int(setting["id"])
                 setting_name = str(setting["name"])
-                setting_note = str(setting["note"]) if pd.notna(setting["note"]) else ""
+                setting_note = (
+                    str(setting["note"]) if setting["note"] is not None else ""
+                )
                 setting_type = str(setting["type"])
                 is_active = (
                     bool(setting["is_active"])
@@ -264,7 +275,10 @@ with st.container(border=True):
             for index, setting in settings_df.iterrows():
                 setting_id = int(setting["id"])
                 setting_name = str(setting["name"])
-                setting_note = str(setting["note"]) if pd.notna(setting["note"]) else ""
+                setting_note = (
+                    str(setting["note"]) if setting["note"] is not None else ""
+                )
+
                 setting_type = str(setting["type"])
                 is_active = (
                     bool(setting["is_active"])
@@ -382,11 +396,13 @@ with st.container(border=True):
                         col_save, col_cancel = st.columns(2)
                         with col_save:
                             save_button = st.form_submit_button(
-                                "Save", use_container_width=True
+                                "Save", use_container_width=True, icon=":material/save:"
                             )
                         with col_cancel:
                             cancel_button = st.form_submit_button(
-                                "Cancel", use_container_width=True
+                                "Cancel",
+                                use_container_width=True,
+                                icon=":material/cancel:",
                             )
 
                         if save_button and new_name.strip():
