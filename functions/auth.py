@@ -6,11 +6,12 @@ def login():
     # Load credentials from st.secrets
     credentials = {
         "usernames": {
-            username: {"name": name, "password": pwd}
-            for username, name, pwd in zip(
+            username: {"name": name, "password": pwd, "roles": role}
+            for username, name, pwd, role in zip(
                 st.secrets.credentials.usernames,
                 st.secrets.credentials.names,
                 st.secrets.credentials.passwords,
+                st.secrets.credentials.roles,
             )
         }
     }

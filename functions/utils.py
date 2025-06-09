@@ -61,13 +61,16 @@ def create_sidebar() -> None:
         os.path.join("pages", "game_results.py"),
         label=":material/sports_score: Game Results",
     )
-    st.sidebar.divider()
-    st.sidebar.page_link(
-        os.path.join("pages", "settings.py"), label=":material/settings: Settings"
-    )
+
+    # settings only for admins
+    if st.session_state.get("roles") == "admin":
+        st.sidebar.divider()
+        st.sidebar.page_link(
+            os.path.join("pages", "settings.py"), label=":material/settings: Settings"
+        )
 
     # user is connected
-    h_spacer(height=2, sb=True)
+    h_spacer(height=1, sb=True)
     if st.session_state["authentication_status"]:
         authenticator = st.session_state["auth"]
         authenticator.logout(
