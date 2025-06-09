@@ -34,16 +34,137 @@ with tab1:
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Games", len(games_df), border=True)
+
         with col2:
-            # Calculate average players per game
-            avg_players = games_df["player_count"].mean()
-            st.metric("Avg Players/Game", f"{avg_players:.1f}", border=True)
+            # Calculate average duration for games that have duration tracked
+            duration_games = 0
+            total_duration = 0
+            for _, game in games_df.iterrows():
+                game_id = int(game["id"])
+                game_details = db.get_game_details(game_id)
+                if game_details and game_details.get("settings"):
+                    for setting_info in game_details["settings"]:
+                        if "duration" in setting_info["setting_name"].lower():
+                            duration_games += 1
+                            try:
+                                # Extract minutes from value
+                                minutes = int(float(setting_info["value"]))
+                                total_duration += minutes
+                            except:
+                                pass
+                            break  # Only count first time setting per game
+
+            if duration_games > 0:
+                Avg_duration = total_duration / duration_games
+                if Avg_duration > 60:
+                    hours = int(Avg_duration // 60)
+                    remaining_minutes = int(Avg_duration % 60)
+                    duration_text = f"{hours}h {remaining_minutes:02d}m"
+                else:
+                    duration_text = f"{Avg_duration:.0f}m"
+                value_games = f"Avg Duration ({duration_games} games)"
+                value = f"{duration_text}"
+            else:
+                value_games = "Avg Duration"
+                value = None
+            st.metric(value_games, value, border=True)
+
         with col3:
-            # Show date range
-            if len(games_df) > 0:
-                latest_date = games_df["game_date"].max()
-                formatted_date = ut.format_date_german(latest_date)
-                st.metric("Latest Game", formatted_date, border=True)
+            # Calculate average age if age setting exists
+            age_games = 0
+            total_age = 0
+            for _, game in games_df.iterrows():
+                game_id = int(game["id"])
+                game_details = db.get_game_details(game_id)
+                if game_details and game_details.get("settings"):
+                    for setting_info in game_details["settings"]:
+                        if "age" in setting_info["setting_name"].lower():
+                            age_games += 1
+                            try:
+                                age_value = int(float(setting_info["value"]))
+                                total_age += age_value
+                            except:
+                                pass
+                            break  # Only count first age setting per game
+
+            if age_games > 0:
+                value = f"{total_age / age_games:.1f}"
+            else:
+                value = None
+            st.metric("Avg Ages Played", value, border=True)
+
+        with col1:
+            # Calculate average points per game
+            total_points = 0
+            for _, game in games_df.iterrows():
+                game_id = int(game["id"])
+                game_details = db.get_game_details(game_id)
+                if game_details and game_details.get("scores"):
+                    game_total = sum(
+                        score_info["score"] for score_info in game_details["scores"]
+                    )
+                    total_points += game_total
+
+            Avg_points_per_game = (
+                total_points / len(games_df) if len(games_df) > 0 else 0
+            )
+            st.metric("Avg Points/Game", f"{Avg_points_per_game:.1f}", border=True)
+
+        with col2:
+            # Calculate average points per player per game
+            total_player_points = 0
+            total_player_count = 0
+            for _, game in games_df.iterrows():
+                game_id = int(game["id"])
+                game_details = db.get_game_details(game_id)
+                if game_details and game_details.get("scores"):
+                    for score_info in game_details["scores"]:
+                        total_player_points += score_info["score"]
+                        total_player_count += 1
+
+            Avg_points_per_player_per_game = (
+                total_player_points / total_player_count
+                if total_player_count > 0
+                else 0
+            )
+            st.metric(
+                "Avg Points/Player/Game",
+                f"{Avg_points_per_player_per_game:.1f}",
+                border=True,
+            )
+
+        with col3:
+            # Calculate superhost (most frequent location)
+            location_counts = {}
+            for _, game in games_df.iterrows():
+                game_id = int(game["id"])
+                game_details = db.get_game_details(game_id)
+                if game_details and game_details.get("settings"):
+                    for setting_info in game_details["settings"]:
+                        if "location" in setting_info["setting_name"].lower():
+                            location = setting_info["value"]
+                            if location and location.strip():
+                                location_counts[location] = (
+                                    location_counts.get(location, 0) + 1
+                                )
+                            break  # Only count first location setting per game
+
+            if location_counts:
+                superhost = max(location_counts, key=location_counts.get)
+                max_count = location_counts[superhost]
+
+                # Check if there are ties
+                tied_locations = [
+                    loc for loc, count in location_counts.items() if count == max_count
+                ]
+
+                if len(tied_locations) > 1:
+                    value = f"{superhost} (+{len(tied_locations)-1} tied)"
+                else:
+                    value = f"{max(location_counts, key=location_counts.get)}"
+            else:
+                value = None
+            st.metric("Superhost", value, border=True)
 
         # Display each game
         for game_index, (_, game) in enumerate(games_df.iterrows()):
