@@ -814,34 +814,6 @@ def get_game_details(game_id: int) -> dict:
         return {"scores": [], "settings": []}
 
 
-def format_date_german(date_obj):
-    """Format date to German format dd.mm.yyyy"""
-    try:
-        if hasattr(date_obj, "strftime"):
-            return date_obj.strftime("%d.%m.%Y")
-        else:
-            # If it's a string, try to parse it first
-            import datetime
-
-            if isinstance(date_obj, str):
-                parsed_date = datetime.datetime.strptime(date_obj, "%Y-%m-%d").date()
-                return parsed_date.strftime("%d.%m.%Y")
-    except Exception as e:
-        logger.error(f"Error formatting date: {e}")
-        return str(date_obj)
-
-
-def parse_german_date(date_str: str):
-    """Parse German format date dd.mm.yyyy to date object"""
-    try:
-        import datetime
-
-        return datetime.datetime.strptime(date_str, "%d.%m.%Y").date()
-    except Exception as e:
-        logger.error(f"Error parsing German date: {e}")
-        return None
-
-
 def update_game_in_database(
     game_id: int, game_date, player_scores: dict, setting_values: dict, notes: str = ""
 ) -> bool:

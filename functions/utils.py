@@ -1,5 +1,13 @@
 import os
 import streamlit as st
+import logging
+from typing import Literal
+
+
+logger = logging.getLogger(__name__)
+
+# save app_layout as a cross-module variable
+app_layout: Literal["centered", "wide"] = "centered"
 
 
 def default_style() -> None:
@@ -86,3 +94,37 @@ def h_spacer(height: int = 0, sb: bool = False) -> None:
             st.sidebar.write("\n")
         else:
             st.write("\n")
+
+
+def format_date_german(date_obj):
+    """Format date to German format dd.mm.yyyy (without leading zeros)"""
+    try:
+        # Use %d and %m without leading zeros by converting to int first
+        day = int(date_obj.strftime("%d"))
+        month = int(date_obj.strftime("%m"))
+        year = date_obj.strftime("%y")
+        return f"{day}.{month}.{year}"
+    except Exception as e:
+        logger.error(f"Error formatting German date: {e}")
+        return str(date_obj)
+
+
+def format_game_title(game_number: int, game_date) -> str:
+    """Format game title as '#x on Weekday, d.m.yyyy'"""
+    weekdays = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+
+    try:
+        weekday = weekdays[game_date.weekday()]
+        formatted_date = format_date_german(game_date)
+        return f"🎯 #{game_number} on {weekday}, {formatted_date}"
+    except Exception as e:
+        logger.error(f"Error formatting game title: {e}")
+        return f"🎯 Game #{game_number}"

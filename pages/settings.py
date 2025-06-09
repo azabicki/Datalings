@@ -4,7 +4,7 @@ import functions.utils as ut
 import functions.auth as auth
 import functions.database as db
 
-st.set_page_config(page_title="Settings", layout="wide")
+st.set_page_config(page_title="Settings", layout=ut.app_layout)
 
 # auth
 auth.login()
@@ -79,7 +79,7 @@ with st.container(border=True):
 
         if not players_df.empty:
             # Display players in a more user-friendly way
-            for index, player in players_df.iterrows():
+            for _, player in players_df.iterrows():
                 col1, col2, col3 = st.columns([3, 2, 2], vertical_alignment="center")
 
                 player_id = int(player["id"])
@@ -215,7 +215,7 @@ with st.container(border=True):
                 st.metric("Active Settings", active_settings, border=True)
 
             # Display settings
-            for index, setting in settings_df.iterrows():
+            for _, setting in settings_df.iterrows():
                 setting_id = int(setting["id"])
                 setting_name = str(setting["name"])
                 setting_note = (
@@ -272,7 +272,7 @@ with st.container(border=True):
 
         if len(settings_df) > 0:
             # Display settings
-            for index, setting in settings_df.iterrows():
+            for index, (_, setting) in enumerate(settings_df.iterrows()):
                 setting_id = int(setting["id"])
                 setting_name = str(setting["name"])
                 setting_note = (
@@ -329,7 +329,7 @@ with st.container(border=True):
                     position_action = None
                     if updown:  # Only show segmented control if there are options
                         position_action = st.segmented_control(
-                            "",
+                            "_",
                             options=updown.keys(),
                             format_func=lambda option: updown[option],
                             key=segment_key,

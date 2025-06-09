@@ -7,12 +7,9 @@ headless = true
 
 [theme]
 # Primary accent for interactive elements
-# primaryColor = "#8b8a85"
-# primaryColor = "#bd3f19"
-primaryColor = "#8A784E"
+primaryColor = "#bd3f19"
 
 # Background color for the main content area
-# backgroundColor = "#fde7cd"
 backgroundColor = "#AEC8A4"
 
 # Background color for sidebar and most interactive widgets
@@ -33,7 +30,7 @@ headingFont = "serif"
 # or the number in pixels or rem. For example, you can use "10px",
 # "0.5rem", or "2rem". To follow best practices, use rem instead of
 # pixels when specifying a numeric size.
-baseRadius = "0.8rem"
+baseRadius = "1rem"
 
 # The color of the border around elements.
 borderColor = "#000000"
@@ -47,8 +44,8 @@ baseFontSize = 16
 
 # Whether to show a vertical separator between the sidebar and the main
 # content area.
-showSidebarBorder = false
+showSidebarBorder = true
 
 
 [theme.sidebar]
-baseRadius = "0.8rem"
+baseRadius = "0.5rem"

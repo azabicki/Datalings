@@ -1,11 +1,10 @@
 import streamlit as st
-import pandas as pd
 from datetime import date
 import functions.utils as ut
 import functions.auth as auth
 import functions.database as db
 
-st.set_page_config(page_title="Game Results", layout="wide")
+st.set_page_config(page_title="Game Results", layout=ut.app_layout)
 
 # auth
 auth.login()
@@ -43,13 +42,13 @@ with tab1:
             # Show date range
             if len(games_df) > 0:
                 latest_date = games_df["game_date"].max()
-                formatted_date = db.format_date_german(latest_date)
+                formatted_date = ut.format_date_german(latest_date)
                 st.metric("Latest Game", formatted_date, border=True)
 
         # Display each game
-        for _, game in games_df.iterrows():
+        for game_index, (_, game) in enumerate(games_df.iterrows()):
             game_id = int(game["id"])
-            game_date_str = db.format_date_german(game["game_date"])
+            game_number = len(games_df) - int(game_index)
             player_count = int(game["player_count"])
             notes = str(game["notes"]) if game["notes"] is not None else ""
 
@@ -59,17 +58,20 @@ with tab1:
             if not game_details:
                 continue
 
+            # Create game title with new format
+            game_title = ut.format_game_title(game_number, game["game_date"])
+
             # Main game display
             with st.container(border=True):
                 # title
-                col1, col2, col3 = st.columns([3, 1, 1], vertical_alignment="center")
+                col1, col2, col3 = st.columns([5, 1, 1], vertical_alignment="bottom")
                 with col1:
-                    st.markdown(f"### 🎯 Game on {game_date_str}")
+                    st.markdown(f"### {game_title}")
 
                 # edit button
                 with col2:
                     if st.button(
-                        "Edit",
+                        "",
                         key=f"edit_game_{game_id}",
                         type="secondary",
                         icon=":material/edit:",
@@ -87,7 +89,7 @@ with tab1:
                 # delete button
                 with col3:
                     if st.button(
-                        "Delete",
+                        "",
                         key=f"delete_game_{game_id}",
                         type="secondary",
                         icon=":material/delete:",
@@ -107,19 +109,31 @@ with tab1:
                         scores_data.sort(key=lambda x: x["score"], reverse=True)
 
                         score_text = []
+                        current_rank = 1
+                        prev_score = None
+
                         for i, score_info in enumerate(scores_data):
-                            position = i + 1
-                            if position == 1:
+                            current_score = score_info["score"]
+
+                            # If score changed, update rank to current position + 1
+                            if prev_score is not None and current_score != prev_score:
+                                current_rank = i + 1
+
+                            # Assign medal based on rank
+                            if current_rank == 1:
                                 medal = "🥇"
-                            elif position == 2:
+                            elif current_rank == 2:
                                 medal = " 🥈"
-                            elif position == 3:
+                            elif current_rank == 3:
                                 medal = "  🥉"
                             else:
-                                medal = f"    {position}."
+                                medal = f"    {current_rank}."
+
                             score_text.append(
                                 f"{medal} {score_info['player_name']} : {score_info['score']} pts"
                             )
+
+                            prev_score = current_score
 
                         st.text("\n".join(score_text))
 
@@ -166,16 +180,18 @@ with tab1:
 
                         with col1:
                             # Date input
-                            current_date = (
-                                db.parse_german_date(str(game_date_str)) or date.today()
-                            )
+                            current_date = game["game_date"]
+
+                            # Ensure current_date is a date object
+                            if not isinstance(current_date, date):
+                                current_date = date.today()
+
                             edit_game_date = st.date_input(
                                 "Game Date",
                                 value=current_date,
                                 format="DD.MM.YYYY",
                                 key=f"edit_date_{game_id}",
                             )
-
                         with col2:
                             # Notes input
                             edit_notes = st.text_area(
@@ -319,6 +335,7 @@ with tab1:
                         with col_save:
                             save_game = st.form_submit_button(
                                 "Save Changes",
+                                type="primary",
                                 use_container_width=True,
                                 icon=":material/save:",
                             )
@@ -376,7 +393,6 @@ with tab2:
                 "Game Date",
                 value=date.today(),
                 format="DD.MM.YYYY",
-                help="Date when the game was played (dd.mm.yyyy format)",
             )
 
         with col2:
@@ -445,7 +461,7 @@ with tab2:
                                     setting_values[setting_id] = str(int(value))
 
                             elif setting_type == "boolean":
-                                value = st.checkbox(
+                                value = st.toggle(
                                     setting_name,
                                     key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
                                 )
