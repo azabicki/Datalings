@@ -286,7 +286,9 @@ with st.container(border=True):
                     else True
                 )
 
-                col1, col2, col3 = st.columns([2, 1, 1], vertical_alignment="center")
+                col1, col2, col3, col4 = st.columns(
+                    [5, 2, 1, 1], vertical_alignment="center"
+                )
                 with col1:
                     status_emoji = "✅" if is_active else "❌"
                     type_emoji = {
@@ -304,8 +306,23 @@ with st.container(border=True):
                         st.markdown(f"##### {status_emoji} {emoji} ~~{setting_name}~~")
 
                 with col2:
+                    updown = {
+                        0: ":material/arrow_downward:",
+                        1: ":material/arrow_upward:",
+                    }
+                    st.segmented_control(
+                        "",
+                        options=updown.keys(),
+                        format_func=lambda option: updown[option],
+                        key=f"edit_setting_up_{setting_id}",
+                        selection_mode="single",
+                        label_visibility="collapsed",
+                    )
+                    # still need to implement functionality to move setting up or downwards
+
+                with col3:
                     if st.button(
-                        "Edit",
+                        "",
                         key=f"edit_setting_{setting_id}",
                         type="secondary",
                         icon=":material/edit:",
@@ -319,10 +336,9 @@ with st.container(border=True):
                             not current_editing
                         )
 
-                with col3:
+                with col4:
                     # Toggle active/inactive
                     new_status = not is_active
-                    button_text = "Deactivate" if is_active else "Activate"
                     button_type = "primary" if is_active else "secondary"
                     button_icon = (
                         ":material/add_circle:"
@@ -338,7 +354,7 @@ with st.container(border=True):
                             button_disabled = True
 
                     if st.button(
-                        button_text,
+                        "",
                         key=f"toggle_setting_{setting_id}",
                         type=button_type,
                         icon=button_icon,
