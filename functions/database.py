@@ -42,6 +42,7 @@ def init_game_settings_table():
         name VARCHAR(255) NOT NULL UNIQUE,
         note TEXT,
         type ENUM('number', 'boolean', 'list', 'time') NOT NULL,
+        position INT NOT NULL DEFAULT 0,
         is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -180,10 +181,12 @@ def player_exists(name: str) -> bool:
 
 
 def get_all_game_settings() -> pd.DataFrame:
-    """Get all game settings from the database."""
+    """Get all game settings from the database ordered by position."""
     conn = st.connection("mysql", type="sql")
     try:
-        df = conn.query("SELECT * FROM datalings_game_settings ORDER BY name", ttl=0)
+        df = conn.query(
+            "SELECT * FROM datalings_game_settings ORDER BY position", ttl=0
+        )
         return df
     except Exception as e:
         logger.error(f"Error fetching game settings: {e}")
@@ -192,11 +195,11 @@ def get_all_game_settings() -> pd.DataFrame:
 
 
 def get_active_game_settings() -> pd.DataFrame:
-    """Get only active game settings from the database."""
+    """Get only active game settings from the database ordered by position."""
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_game_settings WHERE is_active = 1 ORDER BY name",
+            "SELECT * FROM datalings_game_settings WHERE is_active = 1 ORDER BY position",
             ttl=0,
         )
         return df
@@ -207,7 +210,7 @@ def get_active_game_settings() -> pd.DataFrame:
 
 
 def get_game_setting_list_items(setting_id: int) -> pd.DataFrame:
-    """Get all list items for a specific game setting."""
+    """Get list items for a specific game setting."""
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
@@ -222,6 +225,20 @@ def get_game_setting_list_items(setting_id: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def get_next_position() -> int:
+    """Get the next available position for a new game setting."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        result = conn.query(
+            "SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM datalings_game_settings",
+            ttl=0,
+        )
+        return int(result.iloc[0]["next_position"])
+    except Exception as e:
+        logger.error(f"Error getting next position: {e}")
+        return 1
+
+
 def add_game_setting_to_database(
     name: str, note: str = "", setting_type: str = "text"
 ) -> int:
@@ -231,15 +248,19 @@ def add_game_setting_to_database(
         # Set list-type settings as inactive by default
         is_active = 0 if setting_type == "list" else 1
 
+        # Get next position
+        position = get_next_position()
+
         with conn.session as session:
             session.execute(
                 text(
-                    "INSERT INTO datalings_game_settings (name, note, type, is_active) VALUES (:name, :note, :type, :is_active)"
+                    "INSERT INTO datalings_game_settings (name, note, type, position, is_active) VALUES (:name, :note, :type, :position, :is_active)"
                 ),
                 {
                     "name": name,
                     "note": note,
                     "type": setting_type,
+                    "position": position,
                     "is_active": is_active,
                 },
             )
@@ -364,17 +385,136 @@ def update_game_setting_in_database(
 
 
 def game_setting_exists_except_id(name: str, setting_id: int) -> bool:
-    """Check if a game setting with the given name exists, excluding a specific ID."""
+    """Check if a game setting name already exists (excluding a specific ID)."""
     conn = st.connection("mysql", type="sql")
     try:
         result = conn.query(
-            "SELECT COUNT(*) as count FROM datalings_game_settings WHERE name = :name AND id != :setting_id",
-            params={"name": name, "setting_id": setting_id},
-            ttl=60,
+            "SELECT COUNT(*) as count FROM datalings_game_settings WHERE name = :name AND id != :id",
+            params={"name": name, "id": setting_id},
+            ttl=0,
         )
-        return result["count"].iloc[0] > 0
+        return int(result.iloc[0]["count"]) > 0
     except Exception as e:
         logger.error(f"Error checking if game setting exists: {e}")
+        return False
+
+
+def update_setting_position(setting_id: int, new_position: int) -> bool:
+    """Update the position of a game setting."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        with conn.session as session:
+            session.execute(
+                text(
+                    "UPDATE datalings_game_settings SET position = :position WHERE id = :id"
+                ),
+                {"position": new_position, "id": setting_id},
+            )
+            session.commit()
+        logger.info(f"Setting ID {setting_id} position updated to {new_position}")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating setting position: {e}")
+        st.error(f"Error updating setting position: {e}")
+        return False
+
+
+def move_setting_up(setting_id: int) -> bool:
+    """Move a setting up in position (decrease position number)."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        with conn.session as session:
+            # Get current position
+            current_result = session.execute(
+                text("SELECT position FROM datalings_game_settings WHERE id = :id"),
+                {"id": setting_id},
+            )
+            current_position = current_result.scalar()
+
+            if current_position is None or current_position <= 1:
+                return False  # Already at top or setting not found
+
+            # Find the setting with the position we want to swap with
+            swap_result = session.execute(
+                text(
+                    "SELECT id FROM datalings_game_settings WHERE position = :position LIMIT 1"
+                ),
+                {"position": current_position - 1},
+            )
+            swap_setting_id = swap_result.scalar()
+
+            if swap_setting_id:
+                # Swap positions
+                session.execute(
+                    text(
+                        "UPDATE datalings_game_settings SET position = :position WHERE id = :id"
+                    ),
+                    {"position": current_position, "id": swap_setting_id},
+                )
+                session.execute(
+                    text(
+                        "UPDATE datalings_game_settings SET position = :position WHERE id = :id"
+                    ),
+                    {"position": current_position - 1, "id": setting_id},
+                )
+
+            session.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error moving setting up: {e}")
+        st.error(f"Error moving setting up: {e}")
+        return False
+
+
+def move_setting_down(setting_id: int) -> bool:
+    """Move a setting down in position (increase position number)."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        with conn.session as session:
+            # Get current position and max position
+            current_result = session.execute(
+                text("SELECT position FROM datalings_game_settings WHERE id = :id"),
+                {"id": setting_id},
+            )
+            current_position = current_result.scalar()
+
+            max_result = session.execute(
+                text("SELECT MAX(position) FROM datalings_game_settings")
+            )
+            max_position = max_result.scalar()
+
+            if current_position is None or current_position >= max_position:
+                return False  # Already at bottom or setting not found
+
+            # Find the setting with the position we want to swap with
+            swap_result = session.execute(
+                text(
+                    "SELECT id FROM datalings_game_settings WHERE position = :position LIMIT 1"
+                ),
+                {"position": current_position + 1},
+            )
+            swap_setting_id = swap_result.scalar()
+
+            if swap_setting_id:
+                # Swap positions
+                session.execute(
+                    text(
+                        "UPDATE datalings_game_settings SET position = :position WHERE id = :id"
+                    ),
+                    {"position": current_position, "id": swap_setting_id},
+                )
+                session.execute(
+                    text(
+                        "UPDATE datalings_game_settings SET position = :position WHERE id = :id"
+                    ),
+                    {"position": current_position + 1, "id": setting_id},
+                )
+
+            session.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error moving setting down: {e}")
+        st.error(f"Error moving setting down: {e}")
         return False
 
 
@@ -444,7 +584,7 @@ def add_game_to_database(
     try:
         with conn.session as session:
             # Insert game
-            result = session.execute(
+            session.execute(
                 text(
                     "INSERT INTO datalings_games (game_date, notes) VALUES (:game_date, :notes)"
                 ),
@@ -452,8 +592,9 @@ def add_game_to_database(
             )
             session.commit()
 
-            # Get the game ID
-            game_id = result.lastrowid
+            # Get the game ID using a separate query
+            game_id_result = session.execute(text("SELECT LAST_INSERT_ID()"))
+            game_id = game_id_result.scalar()
             logger.info(f"Game inserted with ID: {game_id}")
 
             if not game_id or game_id == 0:

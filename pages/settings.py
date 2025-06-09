@@ -53,7 +53,7 @@ with st.container(border=True):
                         if player_idx < len(players_df_active):
                             with player_cols[col_idx + 1]:
                                 player = players_df_active.iloc[player_idx]
-                                st.markdown(f"#### ✅ {player["name"]}")
+                                st.markdown(f"#### ✅ {player['name']}")
 
             # display INACTIVE players
             if len(players_df_inactive) > 0:
@@ -66,7 +66,7 @@ with st.container(border=True):
                         if player_idx < len(players_df_inactive):
                             with player_cols[col_idx + 1]:
                                 player = players_df_inactive.iloc[player_idx]
-                                st.markdown(f"#### ❌ ~~{player["name"]}~~")
+                                st.markdown(f"#### ❌ ~~{player['name']}~~")
 
         else:
             st.info(
@@ -306,19 +306,46 @@ with st.container(border=True):
                         st.markdown(f"##### {status_emoji} {emoji} ~~{setting_name}~~")
 
                 with col2:
-                    updown = {
-                        0: ":material/arrow_downward:",
-                        1: ":material/arrow_upward:",
-                    }
-                    st.segmented_control(
-                        "",
-                        options=updown.keys(),
-                        format_func=lambda option: updown[option],
-                        key=f"edit_setting_up_{setting_id}",
-                        selection_mode="single",
-                        label_visibility="collapsed",
-                    )
-                    # still need to implement functionality to move setting up or downwards
+                    # Initialize counter for this setting if not exists
+                    counter_key = f"counter_{setting_id}"
+                    if counter_key not in st.session_state:
+                        st.session_state[counter_key] = 0
+                    
+                    # Use counter in key to force reset after each action
+                    segment_key = f"edit_setting_up_{setting_id}_{st.session_state[counter_key]}"
+                    
+                    # Determine available options based on position
+                    is_first = index == 0
+                    is_last = index == len(settings_df) - 1
+                    
+                    updown = {}
+                    if not is_last:  # Can move down
+                        updown[0] = ":material/arrow_downward:"
+                    if not is_first:  # Can move up
+                        updown[1] = ":material/arrow_upward:"
+                    
+                    position_action = None
+                    if updown:  # Only show segmented control if there are options
+                        position_action = st.segmented_control(
+                            "",
+                            options=updown.keys(),
+                            format_func=lambda option: updown[option],
+                            key=segment_key,
+                            selection_mode="single",
+                            label_visibility="collapsed",
+                            default=None,
+                        )
+                    
+                    # Handle position changes
+                    if position_action is not None:
+                        if position_action == 1:  # Move up
+                            if db.move_setting_up(setting_id):
+                                st.session_state[counter_key] += 1
+                                st.rerun()
+                        elif position_action == 0:  # Move down
+                            if db.move_setting_down(setting_id):
+                                st.session_state[counter_key] += 1
+                                st.rerun()
 
                 with col3:
                     if st.button(
@@ -452,7 +479,9 @@ with st.container(border=True):
 
                         # Show current items for editing
                         if len(list_items_df) > 0:
-                            for idx, item_row in list_items_df.iterrows():
+                            for idx, (_, item_row) in enumerate(
+                                list_items_df.iterrows(), 1
+                            ):
                                 col_item, col_edit = st.columns([3, 1])
                                 item_id = int(item_row["id"])
                                 item_value = str(item_row["value"])
@@ -464,7 +493,7 @@ with st.container(border=True):
                                         st.session_state[edit_key] = item_value
 
                                     new_value = st.text_input(
-                                        f"Item {idx + 1}:",
+                                        f"Item {idx}:",
                                         value=st.session_state[edit_key],
                                         key=f"input_{edit_key}",
                                         label_visibility="collapsed",
