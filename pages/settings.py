@@ -310,20 +310,22 @@ with st.container(border=True):
                     counter_key = f"counter_{setting_id}"
                     if counter_key not in st.session_state:
                         st.session_state[counter_key] = 0
-                    
+
                     # Use counter in key to force reset after each action
-                    segment_key = f"edit_setting_up_{setting_id}_{st.session_state[counter_key]}"
-                    
+                    segment_key = (
+                        f"edit_setting_up_{setting_id}_{st.session_state[counter_key]}"
+                    )
+
                     # Determine available options based on position
                     is_first = index == 0
                     is_last = index == len(settings_df) - 1
-                    
+
                     updown = {}
                     if not is_last:  # Can move down
                         updown[0] = ":material/arrow_downward:"
                     if not is_first:  # Can move up
                         updown[1] = ":material/arrow_upward:"
-                    
+
                     position_action = None
                     if updown:  # Only show segmented control if there are options
                         position_action = st.segmented_control(
@@ -335,7 +337,7 @@ with st.container(border=True):
                             label_visibility="collapsed",
                             default=None,
                         )
-                    
+
                     # Handle position changes
                     if position_action is not None:
                         if position_action == 1:  # Move up
@@ -537,14 +539,15 @@ with st.container(border=True):
                         )
 
                         with col_input:
-                            new_item_key = f"new_item_{setting_id}"
-                            if new_item_key not in st.session_state:
-                                st.session_state[new_item_key] = ""
+                            # Use counter for input field reset
+                            input_counter_key = f"input_counter_{setting_id}"
+                            if input_counter_key not in st.session_state:
+                                st.session_state[input_counter_key] = 0
+
                             new_item = st.text_input(
                                 "Add new item:",
-                                value=st.session_state[new_item_key],
                                 placeholder="Enter new list item...",
-                                key=f"input_{new_item_key}",
+                                key=f"input_new_item_{setting_id}_{st.session_state[input_counter_key]}",
                             )
 
                         with col_add:
@@ -560,9 +563,8 @@ with st.container(border=True):
                                     if db.add_list_item_to_setting(
                                         setting_id, new_item.strip(), next_order
                                     ):
-                                        st.session_state[new_item_key] = (
-                                            ""  # Clear input
-                                        )
+                                        # Clear input field by incrementing counter (creates new widget)
+                                        st.session_state[input_counter_key] += 1
                                         st.rerun()
                                 else:
                                     st.error("Please enter a valid item.")
