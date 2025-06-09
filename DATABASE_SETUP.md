@@ -50,7 +50,7 @@ CREATE TABLE datalings_game_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
     note TEXT,
-    type ENUM('text', 'number', 'boolean', 'list') NOT NULL,
+    type ENUM('number', 'boolean', 'list', 'time') NOT NULL,
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -61,7 +61,7 @@ CREATE TABLE datalings_game_settings (
 - `id`: Auto-incrementing primary key
 - `name`: Unique setting name (required)
 - `note`: Optional description or note about the setting
-- `type`: The data type of the setting (text, number, boolean, or list)
+- `type`: The data type of the setting (number, boolean, list, or time)
 - `is_active`: Boolean flag to indicate if setting is active (default: 1)
 - `created_at`: Timestamp when setting was created
 - `updated_at`: Timestamp when setting was last modified
@@ -114,6 +114,16 @@ The `functions/database.py` module provides the following functions:
 - `update_game_setting_status_in_database(setting_id, is_active)`: Updates a setting's active status
 - `game_setting_exists_except_id(name, setting_id)`: Checks if a game setting name exists (excluding specific ID)
 
+**Game Results Functions:**
+- `init_game_results_tables()`: Creates the game results tables if they don't exist
+- `add_game_to_database(game_date, player_scores, setting_values, notes)`: Records a new game with scores and settings
+- `get_all_games()`: Returns all games with summary information
+- `get_game_details(game_id)`: Returns detailed information about a specific game
+- `update_game_in_database(game_id, game_date, player_scores, setting_values, notes)`: Updates an existing game
+- `delete_game_from_database(game_id)`: Deletes a game and all related data
+- `format_date_german(date_obj)`: Formats dates to German format (dd.mm.yyyy)
+- `parse_german_date(date_str)`: Parses German format dates to date objects
+
 ## Usage
 
 The database is automatically initialized when the application starts. The Settings page provides management for both players and game settings:
@@ -150,6 +160,79 @@ The database is automatically initialized when the application starts. The Setti
 - **Optional Notes**: Add descriptions to clarify setting purposes
 - **Ordered Lists**: List items maintain their order through the order_index field
 - **User-Friendly Messages**: Clear guidance when list settings need items added
+
+### Game Results Management
+- **Game Recording**: Record games with player scores and setting values
+- **Type-Specific Inputs**: Different input types based on setting types:
+  - **Number**: Number input with validation
+  - **Boolean**: Toggle switches
+  - **Time**: Number input for minutes (1-1440 range)
+  - **List**: Selectbox with configured list items
+- **Date Formatting**: All dates displayed in German format (dd.mm.yyyy)
+- **Game History**: View all recorded games with summary statistics
+- **Game Editing**: Edit all aspects of recorded games including scores and settings
+- **Data Validation**: Ensures at least one non-zero score per game
+
+## Migration Notes
+
+### Adding Time Type to Existing Databases
+
+If you're upgrading from a previous version that didn't have the 'time' setting type, the application will automatically attempt to migrate your database. If automatic migration fails, you can manually run:
+
+```sql
+ALTER TABLE datalings_game_settings 
+MODIFY COLUMN type ENUM('number', 'boolean', 'list', 'time') NOT NULL;
+```
+
+The migration adds 'time' as a new option to the existing ENUM without affecting existing data.
+
+### Game Results Tables
+
+The system automatically creates three additional tables for game results:
+
+```sql
+-- Main games table
+CREATE TABLE datalings_games (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_date DATE NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Player scores for each game
+CREATE TABLE datalings_game_scores (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    player_id INT NOT NULL,
+    score INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES datalings_games(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id) REFERENCES datalings_players(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_game_player (game_id, player_id)
+);
+
+-- Game setting values for each game
+CREATE TABLE datalings_game_setting_values (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    setting_id INT NOT NULL,
+    value_text TEXT,
+    value_number INT,
+    value_boolean TINYINT(1),
+    value_time_minutes INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES datalings_games(id) ON DELETE CASCADE,
+    FOREIGN KEY (setting_id) REFERENCES datalings_game_settings(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_game_setting (game_id, setting_id)
+);
+```
+
+**Key Features:**
+- **Type-Specific Storage**: Different columns for each setting type for efficient querying
+- **Referential Integrity**: Foreign keys ensure data consistency
+- **Cascading Deletes**: Removing a game automatically removes all related scores and settings
+- **Unique Constraints**: Prevents duplicate player scores or setting values per game
 
 ## Security Notes
 
