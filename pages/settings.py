@@ -17,9 +17,6 @@ ut.create_sidebar()
 db.init_players_table()
 db.init_game_settings_table()
 
-# init app
-# st.header("Settings")
-
 # Player Administration Section
 with st.container(border=True):
     st.header("Players")
@@ -222,10 +219,10 @@ with st.container(border=True):
 
                 status_emoji = "✅" if is_active else "❌"
                 type_emoji = {
-                    "text": "📝",
                     "number": "🔢",
                     "boolean": "☑️",
                     "list": "📋",
+                    "time": "⏱️",
                 }
                 emoji = type_emoji.get(setting_type, "⚙️")
 
@@ -282,6 +279,7 @@ with st.container(border=True):
                         "number": "🔢",
                         "boolean": "☑️",
                         "list": "📋",
+                        "time": "⏱️",
                     }
                     emoji = type_emoji.get(setting_type, "⚙️")
 
@@ -358,12 +356,18 @@ with st.container(border=True):
                         with col_type:
                             new_type = st.selectbox(
                                 "New Type:",
-                                options=["number", "boolean", "list"],
-                                index=["number", "boolean", "list"].index(setting_type),
+                                options=["number", "boolean", "list", "time"],
+                                index=[
+                                    "number",
+                                    "boolean",
+                                    "list",
+                                    "time",
+                                ].index(setting_type),
                                 format_func=lambda x: {
                                     "number": "🔢 Number",
                                     "boolean": "☑️ Boolean",
                                     "list": "📋 List",
+                                    "time": "⏱️ Time",
                                 }[x],
                                 key=f"edit_setting_type_{setting_id}",
                             )
@@ -530,11 +534,12 @@ with st.container(border=True):
             with col2:
                 setting_type = st.selectbox(
                     "Type *",
-                    options=["number", "boolean", "list"],
+                    options=["number", "boolean", "list", "time"],
                     format_func=lambda x: {
                         "number": "🔢 Number",
                         "boolean": "☑️ Boolean",
                         "list": "📋 List",
+                        "time": "⏱️ Time",
                     }[x],
                 )
 

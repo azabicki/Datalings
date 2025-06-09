@@ -126,10 +126,10 @@ The database is automatically initialized when the application starts. The Setti
 1. **Overview Tab**: View all settings with summary statistics
 2. **Manage Tab**: Edit settings, manage list items, and activate/deactivate settings
 3. **Create New Tab**: Create new game settings with different data types:
-   - **Text**: Simple text values
    - **Number**: Numeric values
    - **Boolean**: True/false values
    - **List**: Predefined list of options (created as inactive, items added via edit functionality)
+   - **Time**: Duration tracking for games (validated for time format)
 
 ## Features
 
@@ -140,7 +140,7 @@ The database is automatically initialized when the application starts. The Setti
 - **Status Toggle**: Easy switching between active and inactive states
 
 ### Game Settings Management
-- **Multiple Data Types**: Support for text, number, boolean, and list settings
+- **Multiple Data Types**: Support for number, boolean, list, and time settings
 - **Active/Inactive Status**: Settings can be activated/deactivated like players
 - **Smart Activation**: List settings cannot be activated until they have at least one item
 - **Soft Delete**: Settings can be deactivated instead of deleted to preserve historical data
