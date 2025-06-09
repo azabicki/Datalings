@@ -70,7 +70,7 @@ with st.container(border=True):
 
         else:
             st.info(
-                "No players found. Add some players using the 'Add Player' tab above."
+                "No players found. Add some players using the 'Create New' tab above."
             )
 
     # edit players
@@ -162,7 +162,7 @@ with st.container(border=True):
 
         else:
             st.info(
-                "No players found. Add some players using the 'Add Player' tab above."
+                "No players found. Add some players using the 'Create New' tab above."
             )
 
     # add new players
@@ -263,7 +263,7 @@ with st.container(border=True):
 
         else:
             st.info(
-                "No game settings found. Add some settings using the 'Add' tab above."
+                "No game settings found. Add some settings using the 'Create New' tab above."
             )
 
     # edit game settings
@@ -525,7 +525,7 @@ with st.container(border=True):
 
         else:
             st.info(
-                "No game settings found. Add some settings using the 'Add' tab above."
+                "No game settings found. Add some settings using the 'Create New' tab above."
             )
 
     # add game settings
