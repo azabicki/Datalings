@@ -41,7 +41,7 @@ def init_game_settings_table():
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         note TEXT,
-        type ENUM('number', 'boolean', 'list') NOT NULL,
+        type ENUM('number', 'boolean', 'list', 'time') NOT NULL,
         is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -289,7 +289,9 @@ def update_list_item_in_setting(item_id: int, new_value: str) -> bool:
     try:
         with conn.session as session:
             session.execute(
-                text("UPDATE datalings_game_setting_list_items SET value = :value WHERE id = :id"),
+                text(
+                    "UPDATE datalings_game_setting_list_items SET value = :value WHERE id = :id"
+                ),
                 {"value": new_value, "id": item_id},
             )
             session.commit()
@@ -373,4 +375,426 @@ def game_setting_exists_except_id(name: str, setting_id: int) -> bool:
         return result["count"].iloc[0] > 0
     except Exception as e:
         logger.error(f"Error checking if game setting exists: {e}")
+        return False
+
+
+def init_game_results_tables():
+    """Initialize the game results tables for datalings application."""
+    conn = st.connection("mysql", type="sql")
+
+    # Create games table
+    create_games_table_sql = """
+    CREATE TABLE IF NOT EXISTS datalings_games (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        game_date DATE NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+    """
+
+    # Create game scores table
+    create_scores_table_sql = """
+    CREATE TABLE IF NOT EXISTS datalings_game_scores (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        game_id INT NOT NULL,
+        player_id INT NOT NULL,
+        score INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (game_id) REFERENCES datalings_games(id) ON DELETE CASCADE,
+        FOREIGN KEY (player_id) REFERENCES datalings_players(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_game_player (game_id, player_id)
+    )
+    """
+
+    # Create game settings values table
+    create_game_settings_values_table_sql = """
+    CREATE TABLE IF NOT EXISTS datalings_game_setting_values (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        game_id INT NOT NULL,
+        setting_id INT NOT NULL,
+        value_text TEXT,
+        value_number INT,
+        value_boolean TINYINT(1),
+        value_time_minutes INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (game_id) REFERENCES datalings_games(id) ON DELETE CASCADE,
+        FOREIGN KEY (setting_id) REFERENCES datalings_game_settings(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_game_setting (game_id, setting_id)
+    )
+    """
+
+    try:
+        with conn.session as session:
+            session.execute(text(create_games_table_sql))
+            session.execute(text(create_scores_table_sql))
+            session.execute(text(create_game_settings_values_table_sql))
+            session.commit()
+        logger.info("Game results tables created successfully")
+    except Exception as e:
+        logger.error(f"Error creating game results tables: {e}")
+        raise e
+
+
+def add_game_to_database(
+    game_date, player_scores: dict, setting_values: dict, notes: str = ""
+) -> bool:
+    """Add a new game with scores and settings to the database."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        with conn.session as session:
+            # Insert game
+            result = session.execute(
+                text(
+                    "INSERT INTO datalings_games (game_date, notes) VALUES (:game_date, :notes)"
+                ),
+                {"game_date": game_date, "notes": notes},
+            )
+            session.commit()
+
+            # Get the game ID
+            game_id = result.lastrowid
+            logger.info(f"Game inserted with ID: {game_id}")
+
+            if not game_id or game_id == 0:
+                logger.error("Failed to get valid game ID after insertion")
+                st.error("Failed to create game record")
+                return False
+
+            # Insert player scores
+            for player_id, score in player_scores.items():
+                session.execute(
+                    text(
+                        "INSERT INTO datalings_game_scores (game_id, player_id, score) VALUES (:game_id, :player_id, :score)"
+                    ),
+                    {"game_id": game_id, "player_id": player_id, "score": score},
+                )
+
+            # Insert setting values
+            for setting_id, value in setting_values.items():
+                # Get setting type to determine which column to use
+                setting_info = session.execute(
+                    text(
+                        "SELECT type FROM datalings_game_settings WHERE id = :setting_id"
+                    ),
+                    {"setting_id": setting_id},
+                ).fetchone()
+
+                if setting_info:
+                    setting_type = setting_info[0]
+
+                    # Determine which value column to use
+                    if setting_type == "list":
+                        session.execute(
+                            text(
+                                "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_text) VALUES (:game_id, :setting_id, :value)"
+                            ),
+                            {
+                                "game_id": game_id,
+                                "setting_id": setting_id,
+                                "value": value,
+                            },
+                        )
+                    elif setting_type == "number":
+                        session.execute(
+                            text(
+                                "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_number) VALUES (:game_id, :setting_id, :value)"
+                            ),
+                            {
+                                "game_id": game_id,
+                                "setting_id": setting_id,
+                                "value": int(value),
+                            },
+                        )
+                    elif setting_type == "boolean":
+                        bool_value = 1 if str(value).lower() == "true" else 0
+                        session.execute(
+                            text(
+                                "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_boolean) VALUES (:game_id, :setting_id, :value)"
+                            ),
+                            {
+                                "game_id": game_id,
+                                "setting_id": setting_id,
+                                "value": bool_value,
+                            },
+                        )
+                    elif setting_type == "time":
+                        session.execute(
+                            text(
+                                "INSERT INTO datalings_game_setting_values (game_id, setting_id, value_time_minutes) VALUES (:game_id, :setting_id, :value)"
+                            ),
+                            {
+                                "game_id": game_id,
+                                "setting_id": setting_id,
+                                "value": int(value),
+                            },
+                        )
+
+            session.commit()
+
+        logger.info(f"Game added successfully with ID {game_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error adding game: {e}")
+        st.error(f"Error saving game: {e}")
+        return False
+
+
+def get_all_games() -> pd.DataFrame:
+    """Get all games from the database."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        df = conn.query(
+            """
+            SELECT g.id, g.game_date, g.notes, g.created_at,
+                   COUNT(DISTINCT s.player_id) as player_count
+            FROM datalings_games g
+            LEFT JOIN datalings_game_scores s ON g.id = s.game_id
+            GROUP BY g.id, g.game_date, g.notes, g.created_at
+            ORDER BY g.game_date DESC, g.created_at DESC
+        """,
+            ttl=0,
+        )
+        return df
+    except Exception as e:
+        logger.error(f"Error fetching games: {e}")
+        st.error(f"Error fetching games: {e}")
+        return pd.DataFrame()
+
+
+def get_game_details(game_id: int) -> dict:
+    """Get detailed information about a specific game."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        # Get player scores
+        scores_df = conn.query(
+            """
+            SELECT s.player_id, p.name as player_name, s.score
+            FROM datalings_game_scores s
+            JOIN datalings_players p ON s.player_id = p.id
+            WHERE s.game_id = :game_id
+            ORDER BY s.score DESC
+        """,
+            params={"game_id": game_id},
+            ttl=0,
+        )
+
+        # Get setting values (ordered by setting creation order to maintain consistency)
+        settings_df = conn.query(
+            """
+            SELECT sv.setting_id, gs.name as setting_name, gs.type as setting_type,
+                   sv.value_text, sv.value_number, sv.value_boolean, sv.value_time_minutes
+            FROM datalings_game_setting_values sv
+            JOIN datalings_game_settings gs ON sv.setting_id = gs.id
+            WHERE sv.game_id = :game_id
+            ORDER BY gs.name
+        """,
+            params={"game_id": game_id},
+            ttl=0,
+        )
+
+        # Format the results
+        result = {"scores": [], "settings": []}
+
+        # Process scores
+        if len(scores_df) > 0:
+            for _, score_row in scores_df.iterrows():
+                result["scores"].append(
+                    {
+                        "player_id": int(score_row["player_id"]),
+                        "player_name": str(score_row["player_name"]),
+                        "score": int(score_row["score"]),
+                    }
+                )
+
+        # Process settings
+        if len(settings_df) > 0:
+            for _, setting_row in settings_df.iterrows():
+                setting_type = str(setting_row["setting_type"])
+
+                # Get the appropriate value based on type
+                if setting_type == "list":
+                    value = str(setting_row["value_text"])
+                elif setting_type == "number":
+                    value = str(setting_row["value_number"])
+                elif setting_type == "boolean":
+                    value = "True" if setting_row["value_boolean"] == 1 else "False"
+                elif setting_type == "time":
+                    value = str(setting_row["value_time_minutes"])
+                else:
+                    value = ""
+
+                result["settings"].append(
+                    {
+                        "setting_id": int(setting_row["setting_id"]),
+                        "setting_name": str(setting_row["setting_name"]),
+                        "setting_type": setting_type,
+                        "value": value,
+                    }
+                )
+
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching game details for game {game_id}: {e}")
+        return {"scores": [], "settings": []}
+
+
+def format_date_german(date_obj):
+    """Format date to German format dd.mm.yyyy"""
+    try:
+        if hasattr(date_obj, "strftime"):
+            return date_obj.strftime("%d.%m.%Y")
+        else:
+            # If it's a string, try to parse it first
+            import datetime
+
+            if isinstance(date_obj, str):
+                parsed_date = datetime.datetime.strptime(date_obj, "%Y-%m-%d").date()
+                return parsed_date.strftime("%d.%m.%Y")
+    except Exception as e:
+        logger.error(f"Error formatting date: {e}")
+        return str(date_obj)
+
+
+def parse_german_date(date_str: str):
+    """Parse German format date dd.mm.yyyy to date object"""
+    try:
+        import datetime
+
+        return datetime.datetime.strptime(date_str, "%d.%m.%Y").date()
+    except Exception as e:
+        logger.error(f"Error parsing German date: {e}")
+        return None
+
+
+def update_game_in_database(
+    game_id: int, game_date, player_scores: dict, setting_values: dict, notes: str = ""
+) -> bool:
+    """Update an existing game with new scores and settings."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        with conn.session as session:
+            # Update game basic info
+            session.execute(
+                text(
+                    "UPDATE datalings_games SET game_date = :game_date, notes = :notes WHERE id = :game_id"
+                ),
+                {"game_date": game_date, "notes": notes, "game_id": game_id},
+            )
+
+            # Update player scores
+            for player_id, score in player_scores.items():
+                session.execute(
+                    text(
+                        """
+                        UPDATE datalings_game_scores
+                        SET score = :score
+                        WHERE game_id = :game_id AND player_id = :player_id
+                    """
+                    ),
+                    {"score": score, "game_id": game_id, "player_id": player_id},
+                )
+
+            # Update setting values
+            for setting_id, value in setting_values.items():
+                # Get setting type
+                setting_info = session.execute(
+                    text(
+                        "SELECT type FROM datalings_game_settings WHERE id = :setting_id"
+                    ),
+                    {"setting_id": setting_id},
+                ).fetchone()
+
+                if setting_info:
+                    setting_type = setting_info[0]
+
+                    if setting_type == "list":
+                        session.execute(
+                            text(
+                                """
+                                UPDATE datalings_game_setting_values
+                                SET value_text = :value, value_number = NULL, value_boolean = NULL, value_time_minutes = NULL
+                                WHERE game_id = :game_id AND setting_id = :setting_id
+                            """
+                            ),
+                            {
+                                "value": value,
+                                "game_id": game_id,
+                                "setting_id": setting_id,
+                            },
+                        )
+                    elif setting_type == "number":
+                        session.execute(
+                            text(
+                                """
+                                UPDATE datalings_game_setting_values
+                                SET value_number = :value, value_text = NULL, value_boolean = NULL, value_time_minutes = NULL
+                                WHERE game_id = :game_id AND setting_id = :setting_id
+                            """
+                            ),
+                            {
+                                "value": int(value),
+                                "game_id": game_id,
+                                "setting_id": setting_id,
+                            },
+                        )
+                    elif setting_type == "boolean":
+                        bool_value = 1 if str(value).lower() == "true" else 0
+                        session.execute(
+                            text(
+                                """
+                                UPDATE datalings_game_setting_values
+                                SET value_boolean = :value, value_text = NULL, value_number = NULL, value_time_minutes = NULL
+                                WHERE game_id = :game_id AND setting_id = :setting_id
+                            """
+                            ),
+                            {
+                                "value": bool_value,
+                                "game_id": game_id,
+                                "setting_id": setting_id,
+                            },
+                        )
+                    elif setting_type == "time":
+                        session.execute(
+                            text(
+                                """
+                                UPDATE datalings_game_setting_values
+                                SET value_time_minutes = :value, value_text = NULL, value_number = NULL, value_boolean = NULL
+                                WHERE game_id = :game_id AND setting_id = :setting_id
+                            """
+                            ),
+                            {
+                                "value": int(value),
+                                "game_id": game_id,
+                                "setting_id": setting_id,
+                            },
+                        )
+
+            session.commit()
+
+        logger.info(f"Game {game_id} updated successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating game {game_id}: {e}")
+        st.error(f"Error updating game: {e}")
+        return False
+
+
+def delete_game_from_database(game_id: int) -> bool:
+    """Delete a game and all related data from the database."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        with conn.session as session:
+            # Delete game (cascading will handle scores and settings)
+            session.execute(
+                text("DELETE FROM datalings_games WHERE id = :game_id"),
+                {"game_id": game_id},
+            )
+            session.commit()
+
+        logger.info(f"Game {game_id} deleted successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting game {game_id}: {e}")
+        st.error(f"Error deleting game: {e}")
         return False
