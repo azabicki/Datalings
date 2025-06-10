@@ -932,11 +932,26 @@ def delete_game_from_database(game_id: int) -> bool:
     conn = st.connection("mysql", type="sql")
     try:
         with conn.session as session:
-            # Delete game (cascading will handle scores and settings)
+            # First, delete game setting values (explicit cleanup)
+            session.execute(
+                text(
+                    "DELETE FROM datalings_game_setting_values WHERE game_id = :game_id"
+                ),
+                {"game_id": game_id},
+            )
+
+            # Then, delete game scores (explicit cleanup)
+            session.execute(
+                text("DELETE FROM datalings_game_scores WHERE game_id = :game_id"),
+                {"game_id": game_id},
+            )
+
+            # Finally, delete the game itself
             session.execute(
                 text("DELETE FROM datalings_games WHERE id = :game_id"),
                 {"game_id": game_id},
             )
+
             session.commit()
 
         logger.info(f"Game {game_id} deleted successfully")

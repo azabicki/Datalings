@@ -208,8 +208,49 @@ with tab1:
                         icon=":material/delete:",
                         use_container_width=True,
                     ):
-                        # add here _deleting_ functionality
+                        # Toggle confirmation dialog state
+                        current_state = st.session_state.get(
+                            f"confirm_delete_{game_id}", False
+                        )
+                        st.session_state[f"confirm_delete_{game_id}"] = (
+                            not current_state
+                        )
                         st.rerun()
+
+                # Delete confirmation dialog
+                if st.session_state.get(f"confirm_delete_{game_id}", False):
+                    st.warning(f"⚠️ **Confirm Deletion** This cannot be undone!")
+
+                    col_confirm, col_cancel = st.columns(2)
+                    with col_confirm:
+                        if st.button(
+                            "Yes, Delete Game",
+                            key=f"confirm_delete_yes_{game_id}",
+                            type="primary",
+                            icon=":material/delete:",
+                            use_container_width=True,
+                        ):
+                            if db.delete_game_from_database(game_id):
+                                st.success("Game deleted successfully!")
+                                # Clear the confirmation state
+                                if f"confirm_delete_{game_id}" in st.session_state:
+                                    del st.session_state[f"confirm_delete_{game_id}"]
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete game. Please try again.")
+
+                    with col_cancel:
+                        if st.button(
+                            "Cancel",
+                            key=f"confirm_delete_no_{game_id}",
+                            type="secondary",
+                            icon=":material/cancel:",
+                            use_container_width=True,
+                        ):
+                            # Clear the confirmation state
+                            if f"confirm_delete_{game_id}" in st.session_state:
+                                del st.session_state[f"confirm_delete_{game_id}"]
+                            st.rerun()
 
                 # player scores
                 col1, col2 = st.columns(2)
