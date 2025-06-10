@@ -40,12 +40,12 @@ with tab1:
         total_player_points = 0
         total_player_count = 0
         location_counts = {}
-        
+
         for _, game in games_df.iterrows():
             game_id = int(game["id"])
             game_details = db.get_game_details(game_id)
             all_game_details[game_id] = game_details
-            
+
             if game_details:
                 # Process scores
                 if game_details.get("scores"):
@@ -53,16 +53,16 @@ with tab1:
                         score_info["score"] for score_info in game_details["scores"]
                     )
                     total_points += game_total
-                    
+
                     for score_info in game_details["scores"]:
                         total_player_points += score_info["score"]
                         total_player_count += 1
-                
+
                 # Process settings
                 if game_details.get("settings"):
                     for setting_info in game_details["settings"]:
                         setting_name_lower = setting_info["setting_name"].lower()
-                        
+
                         # Duration calculation
                         if "duration" in setting_name_lower:
                             duration_games += 1
@@ -71,7 +71,7 @@ with tab1:
                                 total_duration += minutes
                             except:
                                 pass
-                        
+
                         # Age calculation
                         elif "age" in setting_name_lower:
                             age_games += 1
@@ -80,7 +80,7 @@ with tab1:
                                 total_age += age_value
                             except:
                                 pass
-                        
+
                         # Location calculation
                         elif "location" in setting_name_lower:
                             location = setting_info["value"]
@@ -90,59 +90,17 @@ with tab1:
                                 )
 
         # Display summary statistics
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3 = st.columns([2, 2, 3])
         with col1:
+            # total number of games
             st.metric("Total Games", len(games_df), border=True)
-
-        with col2:
-            # Display average duration
-            if duration_games > 0:
-                Avg_duration = total_duration / duration_games
-                if Avg_duration > 60:
-                    hours = int(Avg_duration // 60)
-                    remaining_minutes = int(Avg_duration % 60)
-                    duration_text = f"{hours}h {remaining_minutes:02d}m"
-                else:
-                    duration_text = f"{Avg_duration:.0f}m"
-                value_games = f"Avg Duration ({duration_games} games)"
-                value = f"{duration_text}"
-            else:
-                value_games = "Avg Duration"
-                value = None
-            st.metric(value_games, value, border=True)
-
-        with col3:
-            # Display average age
-            if age_games > 0:
-                value = f"{total_age / age_games:.1f}"
-            else:
-                value = None
-            st.metric("Avg Ages Played", value, border=True)
-
-        with col1:
-            # Display average points per game
-            Avg_points_per_game = (
-                total_points / len(games_df) if len(games_df) > 0 else 0
-            )
-            st.metric("Avg Points/Game", f"{Avg_points_per_game:.1f}", border=True)
-
-        with col2:
-            # Display average points per player per game
-            Avg_points_per_player_per_game = (
-                total_player_points / total_player_count
-                if total_player_count > 0
-                else 0
-            )
-            st.metric(
-                "Avg Points/Player/Game",
-                f"{Avg_points_per_player_per_game:.1f}",
-                border=True,
-            )
 
         with col3:
             # Display superhost
             if location_counts:
-                superhost = max(location_counts.keys(), key=lambda x: location_counts[x])
+                superhost = max(
+                    location_counts.keys(), key=lambda x: location_counts[x]
+                )
                 max_count = location_counts[superhost]
 
                 # Check if there are ties
@@ -157,6 +115,21 @@ with tab1:
             else:
                 value = None
             st.metric("Superhost", value, border=True)
+
+        with col2:
+            # Display average duration
+            if duration_games > 0:
+                Avg_duration = total_duration / duration_games
+                if Avg_duration > 60:
+                    hours = int(Avg_duration // 60)
+                    remaining_minutes = int(Avg_duration % 60)
+                    duration_text = f"{hours}h {remaining_minutes:02d}m"
+                else:
+                    duration_text = f"{Avg_duration:.0f}m"
+                value = f"{duration_text}"
+            else:
+                value = None
+            st.metric("Avg Duration", value, border=True)
 
         # Display each game using pre-fetched details
         for game_index, (_, game) in enumerate(games_df.iterrows()):
