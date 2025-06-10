@@ -22,7 +22,9 @@ with st.container(border=True):
     st.header("Players")
 
     # Create tabs for better organization
-    tab1, tab2, tab3 = st.tabs(["Overview", "Manage", "Create New"])
+    tab1, tab2, tab3 = st.tabs(
+        [s.center(12, "\u2001") for s in ["Overview", "Manage", "Create New"]]
+    )
 
     # Get all players
     players_df = db.get_all_players()
@@ -196,7 +198,9 @@ with st.container(border=True):
     st.header("Game Settings")
 
     # Create tabs for better organization
-    tab1, tab2, tab3 = st.tabs(["Overview", "Manage", "Create New"])
+    tab1, tab2, tab3 = st.tabs(
+        [s.center(12, "\u2001") for s in ["Overview", "Manage", "Create New"]]
+    )
 
     # Get all game settings
     settings_df = db.get_all_game_settings()

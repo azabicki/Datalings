@@ -20,7 +20,9 @@ db.init_game_results_tables()
 
 # create tabs for different sections
 st.header("Game Results")
-tab1, tab2 = st.tabs(["Game History", "Record New Game"])
+tab1, tab2 = st.tabs(
+    [s.center(16, "\u2001") for s in ["Game History", "Record New Game"]]
+)
 
 # game history
 with tab1:
