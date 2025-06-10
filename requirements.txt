@@ -3,3 +3,4 @@ mysqlclient
 SQLAlchemy
 watchdog
 streamlit-authenticator
+mysql-connector-python
