@@ -73,6 +73,64 @@ def init_game_settings_table():
         raise e
 
 
+def init_game_results_tables():
+    """Initialize the game results tables for datalings application."""
+    conn = st.connection("mysql", type="sql")
+
+    # Create games table
+    create_games_table_sql = """
+    CREATE TABLE IF NOT EXISTS datalings_games (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        game_date DATE NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+    """
+
+    # Create game scores table
+    create_scores_table_sql = """
+    CREATE TABLE IF NOT EXISTS datalings_game_scores (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        game_id INT NOT NULL,
+        player_id INT NOT NULL,
+        score INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (game_id) REFERENCES datalings_games(id) ON DELETE CASCADE,
+        FOREIGN KEY (player_id) REFERENCES datalings_players(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_game_player (game_id, player_id)
+    )
+    """
+
+    # Create game settings values table
+    create_game_settings_values_table_sql = """
+    CREATE TABLE IF NOT EXISTS datalings_game_setting_values (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        game_id INT NOT NULL,
+        setting_id INT NOT NULL,
+        value_text TEXT,
+        value_number INT,
+        value_boolean TINYINT(1),
+        value_time_minutes INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (game_id) REFERENCES datalings_games(id) ON DELETE CASCADE,
+        FOREIGN KEY (setting_id) REFERENCES datalings_game_settings(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_game_setting (game_id, setting_id)
+    )
+    """
+
+    try:
+        with conn.session as session:
+            session.execute(text(create_games_table_sql))
+            session.execute(text(create_scores_table_sql))
+            session.execute(text(create_game_settings_values_table_sql))
+            session.commit()
+        logger.info("Game results tables created successfully")
+    except Exception as e:
+        logger.error(f"Error creating game results tables: {e}")
+        raise e
+
+
 def get_all_players() -> pd.DataFrame:
     """Get all players from the database."""
     conn = st.connection("mysql", type="sql")
@@ -241,7 +299,7 @@ def get_next_position() -> int:
 
 def add_game_setting_to_database(
     name: str, note: str = "", setting_type: str = "text"
-) -> int:
+) -> bool:
     """Add a new game setting to the database. Returns the setting ID if successful, 0 if failed."""
     conn = st.connection("mysql", type="sql")
     try:
@@ -269,7 +327,7 @@ def add_game_setting_to_database(
             setting_id_result = session.execute(text("SELECT LAST_INSERT_ID()"))
             setting_id = setting_id_result.scalar()
         logger.info(f"Game setting '{name}' added successfully with ID {setting_id}")
-        return int(setting_id) if setting_id else 0
+        return True
     except Exception as e:
         logger.error(f"Error adding game setting '{name}': {e}")
         error_msg = str(e)
@@ -277,7 +335,7 @@ def add_game_setting_to_database(
             st.error(f"Game setting '{name}' already exists!")
         else:
             st.error(f"Error adding game setting: {error_msg}")
-        return 0
+        return False
 
 
 def add_list_item_to_setting(setting_id: int, value: str, order_index: int = 0) -> bool:
@@ -516,64 +574,6 @@ def move_setting_down(setting_id: int) -> bool:
         logger.error(f"Error moving setting down: {e}")
         st.error(f"Error moving setting down: {e}")
         return False
-
-
-def init_game_results_tables():
-    """Initialize the game results tables for datalings application."""
-    conn = st.connection("mysql", type="sql")
-
-    # Create games table
-    create_games_table_sql = """
-    CREATE TABLE IF NOT EXISTS datalings_games (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        game_date DATE NOT NULL,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )
-    """
-
-    # Create game scores table
-    create_scores_table_sql = """
-    CREATE TABLE IF NOT EXISTS datalings_game_scores (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        game_id INT NOT NULL,
-        player_id INT NOT NULL,
-        score INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (game_id) REFERENCES datalings_games(id) ON DELETE CASCADE,
-        FOREIGN KEY (player_id) REFERENCES datalings_players(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_game_player (game_id, player_id)
-    )
-    """
-
-    # Create game settings values table
-    create_game_settings_values_table_sql = """
-    CREATE TABLE IF NOT EXISTS datalings_game_setting_values (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        game_id INT NOT NULL,
-        setting_id INT NOT NULL,
-        value_text TEXT,
-        value_number INT,
-        value_boolean TINYINT(1),
-        value_time_minutes INT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (game_id) REFERENCES datalings_games(id) ON DELETE CASCADE,
-        FOREIGN KEY (setting_id) REFERENCES datalings_game_settings(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_game_setting (game_id, setting_id)
-    )
-    """
-
-    try:
-        with conn.session as session:
-            session.execute(text(create_games_table_sql))
-            session.execute(text(create_scores_table_sql))
-            session.execute(text(create_game_settings_values_table_sql))
-            session.commit()
-        logger.info("Game results tables created successfully")
-    except Exception as e:
-        logger.error(f"Error creating game results tables: {e}")
-        raise e
 
 
 def add_game_to_database(

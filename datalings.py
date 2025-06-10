@@ -14,6 +14,8 @@ ut.create_sidebar()
 
 # Initialize database
 db.init_players_table()
+db.init_game_settings_table()
+db.init_game_results_tables()
 
 # init app
 st.markdown("_...work in progress..._")

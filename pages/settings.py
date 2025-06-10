@@ -16,6 +16,7 @@ ut.create_sidebar()
 # Initialize database
 db.init_players_table()
 db.init_game_settings_table()
+db.init_game_results_tables()
 
 # Player Administration Section
 with st.container(border=True):
@@ -144,11 +145,16 @@ with st.container(border=True):
                         col_save, col_cancel = st.columns(2)
                         with col_save:
                             save_button = st.form_submit_button(
-                                "Save", use_container_width=True
+                                "Save",
+                                type="primary",
+                                icon=":material/save:",
+                                use_container_width=True,
                             )
                         with col_cancel:
                             cancel_button = st.form_submit_button(
-                                "Cancel", use_container_width=True
+                                "Cancel",
+                                icon=":material/cancel:",
+                                use_container_width=True,
                             )
 
                         if save_button and new_name.strip():
@@ -180,7 +186,10 @@ with st.container(border=True):
                 "Player Name", placeholder="Enter player name..."
             )
             submit_button = st.form_submit_button(
-                "Add Player", use_container_width=True, type="primary"
+                "Add Player",
+                icon=":material/add_circle:",
+                use_container_width=True,
+                type="primary",
             )
 
             if submit_button:
@@ -445,7 +454,10 @@ with st.container(border=True):
                         col_save, col_cancel = st.columns(2)
                         with col_save:
                             save_button = st.form_submit_button(
-                                "Save", use_container_width=True, icon=":material/save:"
+                                "Save",
+                                use_container_width=True,
+                                type="primary",
+                                icon=":material/save:",
                             )
                         with col_cancel:
                             cancel_button = st.form_submit_button(
@@ -558,7 +570,8 @@ with st.container(border=True):
                             if st.button(
                                 "Add",
                                 key=f"add_item_{setting_id}",
-                                icon=":material/add:",
+                                type="primary",
+                                icon=":material/add_circle:",
                                 use_container_width=True,
                             ):
                                 if new_item and new_item.strip():
@@ -618,20 +631,21 @@ with st.container(border=True):
 
             # Submit button for the entire form
             submit_button = st.form_submit_button(
-                "Create Game Setting", use_container_width=True, type="primary"
+                "Create Game Setting",
+                icon=":material/add_circle:",
+                use_container_width=True,
+                type="primary",
             )
 
             if submit_button:
                 if new_setting_name.strip():
                     # Add the setting to database
-                    setting_id = db.add_game_setting_to_database(
+                    if db.add_game_setting_to_database(
                         new_setting_name.strip(),
                         setting_note.strip() if setting_note else "",
                         setting_type,
-                    )
-
-                    if setting_id > 0:
-                        # Reset form
+                    ):
+                        # Increment form counter to reset the form
                         st.session_state.settings_form_counter += 1
                         st.rerun()
                 else:
