@@ -92,6 +92,21 @@ with tab1:
             # total number of games
             st.metric("Total Games", len(games_df), border=True)
 
+        with col2:
+            # Display average duration
+            if duration_games > 0:
+                Avg_duration = total_duration / duration_games
+                if Avg_duration > 60:
+                    hours = int(Avg_duration // 60)
+                    remaining_minutes = int(Avg_duration % 60)
+                    duration_text = f"{hours}h {remaining_minutes:02d}m"
+                else:
+                    duration_text = f"{Avg_duration:.0f}m"
+                value = f"{duration_text}"
+            else:
+                value = None
+            st.metric("Avg Duration", value, border=True)
+
         with col3:
             # Display superhost
             if location_counts:
@@ -112,21 +127,6 @@ with tab1:
             else:
                 value = None
             st.metric("Superhost", value, border=True)
-
-        with col2:
-            # Display average duration
-            if duration_games > 0:
-                Avg_duration = total_duration / duration_games
-                if Avg_duration > 60:
-                    hours = int(Avg_duration // 60)
-                    remaining_minutes = int(Avg_duration % 60)
-                    duration_text = f"{hours}h {remaining_minutes:02d}m"
-                else:
-                    duration_text = f"{Avg_duration:.0f}m"
-                value = f"{duration_text}"
-            else:
-                value = None
-            st.metric("Avg Duration", value, border=True)
 
         # Display each game using pre-fetched details
         for game_index, (_, game) in enumerate(games_df.iterrows()):
@@ -201,7 +201,6 @@ with tab1:
                             use_container_width=True,
                         ):
                             if db.delete_game_from_database(game_id):
-                                st.success("Game deleted successfully!")
                                 # Clear the confirmation state
                                 if f"confirm_delete_{game_id}" in st.session_state:
                                     del st.session_state[f"confirm_delete_{game_id}"]
@@ -372,7 +371,9 @@ with tab1:
 
                                             if setting_type == "number":
                                                 try:
-                                                    current_num = int(current_value)
+                                                    current_num = int(
+                                                        float(current_value)
+                                                    )
                                                 except:
                                                     current_num = 0
                                                 new_value = st.number_input(
@@ -405,7 +406,7 @@ with tab1:
                                                 try:
                                                     # Extract minutes from "X minutes" format
                                                     current_minutes = int(
-                                                        current_value.split()[0]
+                                                        float(current_value)
                                                     )
                                                 except:
                                                     current_minutes = 60
