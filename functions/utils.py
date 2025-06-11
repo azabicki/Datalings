@@ -68,6 +68,9 @@ def create_sidebar() -> None:
         st.sidebar.page_link(
             os.path.join("pages", "settings.py"), label=":material/settings: Settings"
         )
+        st.sidebar.page_link(
+            os.path.join("pages", "danger_zone.py"), label=":material/bolt: Danger Zone"
+        )
 
     # user is connected
     h_spacer(height=1, sb=True)

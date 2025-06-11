@@ -13,11 +13,6 @@ auth.login()
 ut.default_style()
 ut.create_sidebar()
 
-# Initialize database
-db.init_players_table()
-db.init_game_settings_table()
-db.init_game_results_tables()
-
 # create tabs for different sections
 st.header("Game Results")
 tab1, tab2 = st.tabs(

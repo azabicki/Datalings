@@ -13,11 +13,6 @@ auth.login()
 ut.default_style()
 ut.create_sidebar()
 
-# Initialize database
-db.init_players_table()
-db.init_game_settings_table()
-db.init_game_results_tables()
-
 # Player Administration Section
 with st.container(border=True):
     st.header("Players")

@@ -131,6 +131,24 @@ def init_game_results_tables():
         raise e
 
 
+def nuke_database():
+    """Delete all data from the database."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        with conn.session as session:
+            session.execute(text("DELETE FROM datalings_game_setting_values"))
+            session.execute(text("DELETE FROM datalings_game_scores"))
+            session.execute(text("DELETE FROM datalings_games"))
+            session.execute(text("DELETE FROM datalings_game_settings"))
+            session.execute(text("DELETE FROM datalings_game_setting_list_items"))
+            session.execute(text("DELETE FROM datalings_players"))
+            session.commit()
+        logger.info("Database nuked successfully")
+    except Exception as e:
+        logger.error(f"Error nuking database: {e}")
+        raise e
+
+
 def get_all_players() -> pd.DataFrame:
     """Get all players from the database."""
     conn = st.connection("mysql", type="sql")
