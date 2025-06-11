@@ -20,6 +20,7 @@ with st.container(border=True):
     @st.dialog("Nuke database", width="small")
     def nuke_db():
         st.markdown("Are your sure to **nuke** the databse???")
+        ut.h_spacer(2)
         col = st.columns([3, 1])
         with col[0]:
             if st.button(

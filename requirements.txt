@@ -3,4 +3,9 @@ mysqlclient
 SQLAlchemy
 watchdog
 streamlit-authenticator
+plotly
+pandas
+numpy
+altair
 mysql-connector-python
+scipy
