@@ -35,9 +35,7 @@ with st.container(border=True):
                 # Nuke database
                 db.nuke_database()
                 # Initialize database
-                # db.init_players_table()
-                # db.init_game_settings_table()
-                # db.init_game_results_tables()
+                db.init_tables()
 
                 st.rerun()
 

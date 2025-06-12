@@ -61,18 +61,6 @@ def create_sidebar() -> None:
         os.path.join("pages", "game_results.py"),
         label=":material/sports_score: Game Results",
     )
-    st.sidebar.page_link(
-        os.path.join("pages", "game_results_optimized.py"),
-        label=":material/sports_score: Game Results",
-    )
-    st.sidebar.page_link(
-        os.path.join("pages", "game_results_with_dialogs.py"),
-        label=":material/sports_score: Game Results",
-    )
-    st.sidebar.page_link(
-        os.path.join("pages", "game_results_ultra_optimized.py"),
-        label=":material/sports_score: Game Results",
-    )
 
     # settings only for admins
     if st.session_state.get("roles") == "admin":

@@ -6,7 +6,7 @@ from sqlalchemy import text
 logger = logging.getLogger(__name__)
 
 
-def init_players_table():
+def init_tables():
     """Initialize the players table for datalings application."""
     conn = st.connection("mysql", type="sql")
 
@@ -30,9 +30,7 @@ def init_players_table():
         logger.error(f"Error creating players table: {e}")
         raise e
 
-
-def init_game_settings_table():
-    """Initialize the game settings tables for datalings application."""
+    # """Initialize the game settings tables for datalings application."""
     conn = st.connection("mysql", type="sql")
 
     # Create game settings table
@@ -72,9 +70,7 @@ def init_game_settings_table():
         logger.error(f"Error creating game settings tables: {e}")
         raise e
 
-
-def init_game_results_tables():
-    """Initialize the game results tables for datalings application."""
+    # """Initialize the game results tables for datalings application."""
     conn = st.connection("mysql", type="sql")
 
     # Create games table
