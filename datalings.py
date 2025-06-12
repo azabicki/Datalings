@@ -196,8 +196,8 @@ def calculate_comprehensive_stats():
     return player_stats, scores_df, total_games, total_age, age_games
 
 
-# Chart creation functions
-def create_cumulative_chart_plotly(cumulative_df):
+# 1 Chart creation functions ##########################################
+def create_cumulative_chart(cumulative_df):
     """Create cumulative score chart with Plotly"""
     fig = px.line(
         cumulative_df,
@@ -241,71 +241,8 @@ def create_cumulative_chart_plotly(cumulative_df):
     return fig
 
 
-def create_cumulative_chart_altair(cumulative_df):
-    """Create cumulative score chart with Altair"""
-    chart = (
-        alt.Chart(cumulative_df)
-        .mark_line(point=True, strokeWidth=3)
-        .add_selection(alt.selection_multi(fields=["Player"]))
-        .encode(
-            x=alt.X("Game:O", title="Game Number"),
-            y=alt.Y("Cumulative Score:Q", title="Cumulative Score"),
-            color=alt.Color("Player:N", scale=alt.Scale(scheme="category10")),
-            opacity=alt.condition(alt.datum.Player, alt.value(0.8), alt.value(0.3)),
-            tooltip=["Player:N", "Game:O", "Cumulative Score:Q", "Game Date:T"],
-        )
-        .properties(
-            width=600, height=400, title="Cumulative Score Development (Altair)"
-        )
-        .interactive()
-    )
-
-    return chart
-
-
-# Chart creation functions
-def create_wins_chart_plotly(wins_df):
-    """Create wins chart with Plotly"""
-    fig = px.bar(
-        wins_df,
-        x="Player",
-        y="Wins",
-        title="Total Wins by Player (Interactive)",
-        color="Player",
-        text="Wins",
-    )
-
-    fig.update_layout(
-        height=400,
-        showlegend=False,
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="black"),
-        yaxis=dict(dtick=1),
-        modebar=dict(
-            remove=[
-                "pan2d",
-                "select2d",
-                "lasso2d",
-                "zoom2d",
-                "zoomIn2d",
-                "zoomOut2d",
-                "autoScale2d",
-                "resetScale2d",
-            ]
-        ),
-    )
-
-    fig.update_traces(
-        texttemplate="%{text}",
-        textposition="outside",
-        textfont=dict(color="black"),
-        hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
-    )
-    return fig
-
-
-def create_wins_chart_altair(wins_df):
+# 2 Chart creation functions ##########################################
+def create_wins_chart(wins_df):
     """Create wins chart with Altair"""
     chart = (
         alt.Chart(wins_df)
@@ -357,7 +294,7 @@ def create_wins_chart_altair(wins_df):
     )
 
 
-# Chart creation functions
+# 3 Chart creation functions ##########################################
 def create_ranking_chart_plotly(ranking_df):
     """Create ranking points chart with Plotly"""
     fig = make_subplots(
@@ -443,73 +380,7 @@ def create_ranking_chart_plotly(ranking_df):
     return fig
 
 
-def create_ranking_chart_altair(ranking_df):
-    """Create ranking points chart with Altair"""
-    # Total points chart
-    total_chart = (
-        alt.Chart(ranking_df)
-        .mark_bar()
-        .encode(
-            x=alt.X(
-                "Player:N",
-                title="Player",
-                sort="-y",
-                axis=alt.Axis(labelColor="black", titleColor="black"),
-            ),
-            y=alt.Y(
-                "Total Points:Q",
-                title="Total Points",
-                axis=alt.Axis(tickMinStep=1, labelColor="black", titleColor="black"),
-            ),
-            color=alt.Color(
-                "Player:N", scale=alt.Scale(scheme="category10"), legend=None
-            ),
-            tooltip=["Player:N", "Total Points:Q"],
-        )
-        .properties(
-            width=250,
-            height=300,
-            title=alt.TitleParams(text="Total Ranking Points", color="black"),
-        )
-    )
-
-    # Average points chart
-    avg_chart = (
-        alt.Chart(ranking_df)
-        .mark_bar()
-        .encode(
-            x=alt.X(
-                "Player:N",
-                title="Player",
-                sort=alt.EncodingSortField(field="Avg Points", order="descending"),
-                axis=alt.Axis(labelColor="black", titleColor="black"),
-            ),
-            y=alt.Y(
-                "Avg Points:Q",
-                title="Average Points",
-                axis=alt.Axis(labelColor="black", titleColor="black"),
-            ),
-            color=alt.Color(
-                "Player:N", scale=alt.Scale(scheme="category10"), legend=None
-            ),
-            tooltip=["Player:N", "Avg Points:Q"],
-        )
-        .properties(
-            width=250,
-            height=300,
-            title=alt.TitleParams(text="Average Points per Game", color="black"),
-        )
-    )
-
-    return (
-        alt.hconcat(total_chart, avg_chart)
-        .resolve_scale(color="independent")
-        .configure_axis(labelColor="black", titleColor="black")
-        .configure_title(color="black")
-    )
-
-
-# Chart creation functions
+# 4 Chart creation functions ##########################################
 def create_performance_radar_plotly(metrics_for_radar):
     """Create performance radar chart with Plotly"""
     fig = go.Figure()
@@ -598,7 +469,7 @@ def create_performance_radar_streamlit(metrics_for_radar):
     # Use only as many colors as needed
     chart_colors = colors[:num_players]
 
-    st.area_chart(area_chart_data, height=400, color=chart_colors)
+    st.area_chart(area_chart_data, height=400, color=chart_colors, stack="normalize")
 
     # Add a summary table below for exact values
     st.markdown("**📋 Exact Values**")
@@ -664,7 +535,7 @@ def create_performance_radar_altair(metrics_for_radar):
     return chart
 
 
-# Chart creation functions
+# 5 Chart creation functions ##########################################
 def create_heatmap_plotly(h2h_matrix):
     """Create head-to-head heatmap with Plotly"""
     # Find the maximum absolute value for symmetric color scale
@@ -703,74 +574,8 @@ def create_heatmap_plotly(h2h_matrix):
     return fig
 
 
-def create_heatmap_altair(h2h_matrix):
-    """Create head-to-head heatmap with Altair"""
-    # Convert matrix to long format
-    h2h_long = (
-        h2h_matrix.reset_index()
-        .melt(id_vars="index", var_name="Opponent", value_name="Win_Differential")
-        .rename(columns={"index": "Player"})
-    )
-
-    # Find max absolute value for symmetric scale
-    max_abs_value = max(
-        abs(h2h_long["Win_Differential"].min()), abs(h2h_long["Win_Differential"].max())
-    )
-
-    chart = (
-        alt.Chart(h2h_long)
-        .mark_rect()
-        .encode(
-            x=alt.X(
-                "Opponent:N",
-                title="Opponent",
-                axis=alt.Axis(labelColor="black", titleColor="black"),
-            ),
-            y=alt.Y(
-                "Player:N",
-                title="Player",
-                axis=alt.Axis(labelColor="black", titleColor="black"),
-            ),
-            color=alt.Color(
-                "Win_Differential:Q",
-                scale=alt.Scale(
-                    scheme="redyellowgreen", domain=[-max_abs_value, 0, max_abs_value]
-                ),
-                legend=None,
-            ),
-            tooltip=["Player:N", "Opponent:N", "Win_Differential:Q"],
-        )
-        .properties(
-            width=400,
-            height=400,
-            title=alt.TitleParams(
-                text="Head-to-Head Win-Loss Differential (Altair)", color="black"
-            ),
-        )
-    )
-
-    # Add text labels
-    text = (
-        alt.Chart(h2h_long)
-        .mark_text(fontSize=12, fontWeight="bold")
-        .encode(
-            x=alt.X("Opponent:N"),
-            y=alt.Y("Player:N"),
-            text=alt.Text("Win_Differential:Q"),
-            color=alt.value("black"),
-        )
-    )
-
-    return (
-        (chart + text)
-        .configure_axis(labelColor="black", titleColor="black")
-        .configure_title(color="black")
-    )
-
-
-# Main app
-st.title("🏆 Datalings Leaderboard")
-
+# Main app #####################################################################
+st.subheader("_Well well well.... who should we throw under the bus..???_")
 # Calculate comprehensive statistics
 stats_result = calculate_comprehensive_stats()
 
@@ -786,64 +591,9 @@ if stats_result is None:
 else:
     player_stats, scores_df, total_games, total_age, age_games = stats_result
 
-    # Find leaders in different categories
-    ranking_leader = max(
-        player_stats.items(), key=lambda x: x[1]["total_ranking_points"]
-    )
-    score_leader = max(player_stats.items(), key=lambda x: x[1]["total_score"])
-    win_leader = max(player_stats.items(), key=lambda x: x[1]["wins"])
-
-    champion_col1, champion_col2, champion_col3 = st.columns(3)
-
-    with champion_col1:
-        st.markdown(
-            f"""
-        <div class="winner-card">
-            <h3>🥇 Ranking Points Leader</h3>
-            <h2>{ranking_leader[0]}</h2>
-            <p>{ranking_leader[1]['total_ranking_points']} points</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with champion_col2:
-        st.markdown(
-            f"""
-        <div class="winner-card">
-            <h3>🎯 Highest Total Score</h3>
-            <h2>{score_leader[0]}</h2>
-            <p>{score_leader[1]['total_score']} points</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with champion_col3:
-        st.markdown(
-            f"""
-        <div class="winner-card">
-            <h3>🏅 Most Wins</h3>
-            <h2>{win_leader[0]}</h2>
-            <p>{win_leader[1]['wins']} victories</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("---")
-
-    # 1. CUMULATIVE POINTS DEVELOPMENT CHART
+    # 1. CUMULATIVE POINTS DEVELOPMENT CHART ###################################
     st.subheader("📈 Cumulative Score Progression")
     st.markdown("*Track how each player's total score develops over time*")
-
-    # Chart style selector
-    cumulative_style = st.radio(
-        "Select chart style:",
-        ["Interactive (Plotly)", "Advanced (Altair)"],
-        key="cumulative_style",
-        horizontal=True,
-    )
 
     # Prepare data for cumulative chart
     cumulative_data = []
@@ -865,27 +615,15 @@ else:
     if cumulative_data:
         cumulative_df = pd.DataFrame(cumulative_data)
 
-        if cumulative_style == "Interactive (Plotly)":
-            fig_cumulative = create_cumulative_chart_plotly(cumulative_df)
-            st.plotly_chart(fig_cumulative, use_container_width=True)
-        else:
-            chart_cumulative = create_cumulative_chart_altair(cumulative_df)
-            st.altair_chart(chart_cumulative, use_container_width=True)
+        fig_cumulative = create_cumulative_chart(cumulative_df)
+        st.plotly_chart(fig_cumulative, use_container_width=True)
 
     st.markdown("---")
 
-    # 2. WIN COUNT CHART
+    # 2. WIN COUNT CHART #######################################################
     st.subheader("🏅 Victory Statistics")
     st.markdown(
         "*Who's bringing home the most wins? (Ties count as wins for all tied players)*"
-    )
-
-    # Chart style selector
-    wins_style = st.radio(
-        "Select chart style:",
-        ["Interactive (Plotly)", "Advanced (Altair)"],
-        key="wins_style",
-        horizontal=True,
     )
 
     # Create wins data
@@ -893,12 +631,8 @@ else:
     wins_data.sort(key=lambda x: x[1], reverse=True)
     wins_df = pd.DataFrame(wins_data, columns=["Player", "Wins"])
 
-    if wins_style == "Interactive (Plotly)":
-        fig_wins = create_wins_chart_plotly(wins_df)
-        st.plotly_chart(fig_wins, use_container_width=True)
-    else:
-        chart_wins = create_wins_chart_altair(wins_df)
-        st.altair_chart(chart_wins, use_container_width=True)
+    chart_wins = create_wins_chart(wins_df)
+    st.altair_chart(chart_wins, use_container_width=True)
 
     # Additional win statistics
     col1, col2 = st.columns(2)
@@ -923,18 +657,10 @@ else:
 
     st.markdown("---")
 
-    # 3. RANKING POINTS SYSTEM
+    # 3. RANKING POINTS SYSTEM #################################################
     st.subheader("🎯 Ranking Points System")
     st.markdown(
         "*Based on finishing position: 1st=7pts, 2nd=4pts, 3rd=2pts, 4th+=1pt (tied players get same rank and points)*"
-    )
-
-    # Chart style selector
-    ranking_style = st.radio(
-        "Select chart style:",
-        ["Interactive (Plotly)", "Advanced (Altair)"],
-        key="ranking_style",
-        horizontal=True,
     )
 
     # Create ranking points data
@@ -947,16 +673,12 @@ else:
         ranking_data, columns=["Player", "Total Points", "Avg Points"]
     )
 
-    if ranking_style == "Interactive (Plotly)":
-        fig_ranking = create_ranking_chart_plotly(ranking_df)
-        st.plotly_chart(fig_ranking, use_container_width=True)
-    else:
-        chart_ranking = create_ranking_chart_altair(ranking_df)
-        st.altair_chart(chart_ranking, use_container_width=True)
+    fig_ranking = create_ranking_chart_plotly(ranking_df)
+    st.plotly_chart(fig_ranking, use_container_width=True)
 
     st.markdown("---")
 
-    # 4. ADDITIONAL PERFORMANCE ANALYTICS
+    # 4. ADDITIONAL PERFORMANCE ANALYTICS ######################################
     st.subheader("📊 Advanced Performance Analytics")
 
     # Performance comparison radar chart
@@ -1028,18 +750,10 @@ else:
 
     st.dataframe(detailed_df, use_container_width=True, hide_index=True)
 
-    # Bonus: Head-to-Head Performance Matrix
+    # 5: Head-to-Head Performance Matrix #######################################
     st.markdown("---")
     st.subheader("⚔️ Head-to-Head Performance")
     st.markdown("*Win-loss differential between players (row vs column)*")
-
-    # Chart style selector
-    heatmap_style = st.radio(
-        "Select chart style:",
-        ["Interactive (Plotly)", "Advanced (Altair)"],
-        key="heatmap_style",
-        horizontal=True,
-    )
 
     # Create head-to-head win-loss differential matrix
     players = list(player_stats.keys())
@@ -1068,15 +782,14 @@ else:
                             h2h_matrix.loc[player1, player2] -= 1
                         # If ranks are equal (tie), no change to differential
 
-    if heatmap_style == "Interactive (Plotly)":
-        fig_h2h = create_heatmap_plotly(h2h_matrix)
-        st.plotly_chart(fig_h2h, use_container_width=True)
-    else:
-        chart_h2h = create_heatmap_altair(h2h_matrix)
-        st.altair_chart(chart_h2h, use_container_width=True)
+    fig_h2h = create_heatmap_plotly(h2h_matrix)
+    st.plotly_chart(fig_h2h, use_container_width=True)
 
     st.markdown(
-        "*Matrix shows win-loss differential: positive (green) = more wins, negative (red) = more losses, zero (white) = even*"
+        """*Matrix shows win-loss differential:*
+- positive (green) = more wins
+- zero (white) = even
+- negative (red) = more losses"""
     )
 
 st.markdown("---")
