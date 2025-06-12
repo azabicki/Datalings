@@ -79,7 +79,7 @@ with tab1:
                                 pass
 
                         # Location calculation
-                        elif "location" in setting_name_lower:
+                        elif "host" in setting_name_lower:
                             location = setting_info["value"]
                             if location and location.strip():
                                 location_counts[location] = (
