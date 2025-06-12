@@ -201,43 +201,44 @@ def create_cumulative_chart_plotly(cumulative_df):
     """Create cumulative score chart with Plotly"""
     fig = px.line(
         cumulative_df,
-        x='Game',
-        y='Cumulative Score',
-        color='Player',
+        x="Game",
+        y="Cumulative Score",
+        color="Player",
         title="Cumulative Score Development (Interactive)",
         markers=True,
-        hover_data=['Game Date']
+        hover_data=["Game Date"],
     )
 
     fig.update_layout(
         height=500,
         xaxis_title="Game Number",
         yaxis_title="Cumulative Score",
-        hovermode='x unified',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
+        hovermode="x unified",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
         showlegend=True,
-        font=dict(color='black'),
+        font=dict(color="black"),
         xaxis=dict(dtick=1),
-        modebar=dict(remove=['pan2d', 'select2d', 'lasso2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'])
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
     )
 
     fig.update_traces(
         line=dict(width=5),
         marker=dict(size=10),
-        hoverlabel=dict(bgcolor='lightgrey', font_color='black')
+        hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
     )
     return fig
-
-
-def create_cumulative_chart_streamlit(cumulative_df):
-    """Create cumulative score chart with Streamlit native"""
-    # Pivot data for streamlit line chart
-    pivot_df = cumulative_df.pivot(
-        index="Game", columns="Player", values="Cumulative Score"
-    )
-    st.subheader("Cumulative Score Development (Simple)")
-    st.line_chart(pivot_df, height=400)
 
 
 def create_cumulative_chart_altair(cumulative_df):
@@ -262,41 +263,46 @@ def create_cumulative_chart_altair(cumulative_df):
     return chart
 
 
+# Chart creation functions
 def create_wins_chart_plotly(wins_df):
     """Create wins chart with Plotly"""
     fig = px.bar(
         wins_df,
-        x='Player',
-        y='Wins',
+        x="Player",
+        y="Wins",
         title="Total Wins by Player (Interactive)",
-        color='Player',
-        text='Wins'
+        color="Player",
+        text="Wins",
     )
 
     fig.update_layout(
         height=400,
         showlegend=False,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='black'),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="black"),
         yaxis=dict(dtick=1),
-        modebar=dict(remove=['pan2d', 'select2d', 'lasso2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'])
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
     )
 
     fig.update_traces(
-        texttemplate='%{text}',
-        textposition='outside',
-        textfont=dict(color='black'),
-        hoverlabel=dict(bgcolor='lightgrey', font_color='black')
+        texttemplate="%{text}",
+        textposition="outside",
+        textfont=dict(color="black"),
+        hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
     )
     return fig
-
-
-def create_wins_chart_streamlit(wins_df):
-    """Create wins chart with Streamlit native"""
-    st.subheader("Total Wins by Player (Simple)")
-    wins_chart_data = wins_df.set_index('Player')['Wins']
-    st.bar_chart(wins_chart_data, height=400)
 
 
 def create_wins_chart_altair(wins_df):
@@ -305,100 +311,136 @@ def create_wins_chart_altair(wins_df):
         alt.Chart(wins_df)
         .mark_bar()
         .encode(
-            x=alt.X("Player:N", title="Player", sort="-y", axis=alt.Axis(labelColor='black', titleColor='black')),
-            y=alt.Y("Wins:Q", title="Total Wins", axis=alt.Axis(tickMinStep=1, labelColor='black', titleColor='black')),
-            color=alt.Color("Player:N", scale=alt.Scale(scheme="category10"), legend=None),
+            x=alt.X(
+                "Player:N",
+                title="Player",
+                sort="-y",
+                axis=alt.Axis(labelColor="black", titleColor="black"),
+            ),
+            y=alt.Y(
+                "Wins:Q",
+                title="Total Wins",
+                axis=alt.Axis(tickMinStep=1, labelColor="black", titleColor="black"),
+            ),
+            color=alt.Color(
+                "Player:N", scale=alt.Scale(scheme="category10"), legend=None
+            ),
             tooltip=["Player:N", "Wins:Q"],
         )
-        .properties(width=500, height=400, title=alt.TitleParams(text="Total Wins by Player (Altair)", color='black'))
+        .properties(
+            width=500,
+            height=400,
+            title=alt.TitleParams(text="Total Wins by Player (Altair)", color="black"),
+        )
     )
 
     # Add text labels
     text = (
         alt.Chart(wins_df)
         .mark_text(
-            align="center", baseline="bottom", dy=-5, fontSize=12, fontWeight="bold", color="black"
+            align="center",
+            baseline="bottom",
+            dy=-5,
+            fontSize=12,
+            fontWeight="bold",
+            color="black",
         )
         .encode(
             x=alt.X("Player:N", sort="-y"), y=alt.Y("Wins:Q"), text=alt.Text("Wins:Q")
         )
     )
 
-    return (chart + text).configure_axis(
-        labelColor='black',
-        titleColor='black'
-    ).configure_title(
-        color='black'
+    return (
+        (chart + text)
+        .configure_axis(labelColor="black", titleColor="black")
+        .configure_title(color="black")
     )
 
 
+# Chart creation functions
 def create_ranking_chart_plotly(ranking_df):
     """Create ranking points chart with Plotly"""
     fig = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=('Total Ranking Points', 'Average Points per Game'),
-        specs=[[{"secondary_y": False}, {"secondary_y": False}]]
+        rows=1,
+        cols=2,
+        subplot_titles=("Total Ranking Points", "Average Points per Game"),
+        specs=[[{"secondary_y": False}, {"secondary_y": False}]],
     )
 
     # Total points bar chart
     fig.add_trace(
         go.Bar(
-            x=ranking_df['Player'],
-            y=ranking_df['Total Points'],
-            name='Total Points',
-            marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'][:len(ranking_df)],
-            text=ranking_df['Total Points'],
-            textposition='outside',
-            textfont=dict(color='black'),
-            hoverlabel=dict(bgcolor='lightgrey', font_color='black')
+            x=ranking_df["Player"],
+            y=ranking_df["Total Points"],
+            name="Total Points",
+            marker_color=[
+                "#FF6B6B",
+                "#4ECDC4",
+                "#45B7D1",
+                "#96CEB4",
+                "#FECA57",
+                "#FF9FF3",
+                "#54A0FF",
+                "#5F27CD",
+            ][: len(ranking_df)],
+            text=ranking_df["Total Points"],
+            textposition="outside",
+            textfont=dict(color="black"),
+            hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
         ),
-        row=1, col=1
+        row=1,
+        col=1,
     )
 
     # Average points bar chart
     fig.add_trace(
         go.Bar(
-            x=ranking_df['Player'],
-            y=ranking_df['Avg Points'],
-            name='Avg Points',
-            marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'][:len(ranking_df)],
-            text=[f"{x:.1f}" for x in ranking_df['Avg Points']],
-            textposition='outside',
-            textfont=dict(color='black'),
-            hoverlabel=dict(bgcolor='lightgrey', font_color='black')
+            x=ranking_df["Player"],
+            y=ranking_df["Avg Points"],
+            name="Avg Points",
+            marker_color=[
+                "#FF6B6B",
+                "#4ECDC4",
+                "#45B7D1",
+                "#96CEB4",
+                "#FECA57",
+                "#FF9FF3",
+                "#54A0FF",
+                "#5F27CD",
+            ][: len(ranking_df)],
+            text=[f"{x:.1f}" for x in ranking_df["Avg Points"]],
+            textposition="outside",
+            textfont=dict(color="black"),
+            hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
         ),
-        row=1, col=2
+        row=1,
+        col=2,
     )
 
     fig.update_layout(
         height=450,
         showlegend=False,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
         title_text="Ranking Points System (Interactive)",
-        font=dict(color='black'),
-        modebar=dict(remove=['pan2d', 'select2d', 'lasso2d', 'zoom2d','zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'])
+        font=dict(color="black"),
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
     )
-    
+
     fig.update_yaxes(dtick=1, row=1, col=1)
-    
+
     return fig
-
-
-def create_ranking_chart_streamlit(ranking_df):
-    """Create ranking points chart with Streamlit native"""
-    st.subheader("Ranking Points System (Simple)")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("**Total Ranking Points**")
-        total_points_data = ranking_df.set_index('Player')['Total Points']
-        st.bar_chart(total_points_data, height=300)
-    
-    with col2:
-        st.write("**Average Points per Game**")
-        avg_points_data = ranking_df.set_index('Player')['Avg Points']
-        st.bar_chart(avg_points_data, height=300)
 
 
 def create_ranking_chart_altair(ranking_df):
@@ -408,12 +450,27 @@ def create_ranking_chart_altair(ranking_df):
         alt.Chart(ranking_df)
         .mark_bar()
         .encode(
-            x=alt.X("Player:N", title="Player", sort="-y", axis=alt.Axis(labelColor='black', titleColor='black')),
-            y=alt.Y("Total Points:Q", title="Total Points", axis=alt.Axis(tickMinStep=1, labelColor='black', titleColor='black')),
-            color=alt.Color("Player:N", scale=alt.Scale(scheme="category10"), legend=None),
+            x=alt.X(
+                "Player:N",
+                title="Player",
+                sort="-y",
+                axis=alt.Axis(labelColor="black", titleColor="black"),
+            ),
+            y=alt.Y(
+                "Total Points:Q",
+                title="Total Points",
+                axis=alt.Axis(tickMinStep=1, labelColor="black", titleColor="black"),
+            ),
+            color=alt.Color(
+                "Player:N", scale=alt.Scale(scheme="category10"), legend=None
+            ),
             tooltip=["Player:N", "Total Points:Q"],
         )
-        .properties(width=250, height=300, title=alt.TitleParams(text="Total Ranking Points", color='black'))
+        .properties(
+            width=250,
+            height=300,
+            title=alt.TitleParams(text="Total Ranking Points", color="black"),
+        )
     )
 
     # Average points chart
@@ -425,23 +482,34 @@ def create_ranking_chart_altair(ranking_df):
                 "Player:N",
                 title="Player",
                 sort=alt.EncodingSortField(field="Avg Points", order="descending"),
-                axis=alt.Axis(labelColor='black', titleColor='black')
+                axis=alt.Axis(labelColor="black", titleColor="black"),
             ),
-            y=alt.Y("Avg Points:Q", title="Average Points", axis=alt.Axis(labelColor='black', titleColor='black')),
-            color=alt.Color("Player:N", scale=alt.Scale(scheme="category10"), legend=None),
+            y=alt.Y(
+                "Avg Points:Q",
+                title="Average Points",
+                axis=alt.Axis(labelColor="black", titleColor="black"),
+            ),
+            color=alt.Color(
+                "Player:N", scale=alt.Scale(scheme="category10"), legend=None
+            ),
             tooltip=["Player:N", "Avg Points:Q"],
         )
-        .properties(width=250, height=300, title=alt.TitleParams(text="Average Points per Game", color='black'))
+        .properties(
+            width=250,
+            height=300,
+            title=alt.TitleParams(text="Average Points per Game", color="black"),
+        )
     )
 
-    return alt.hconcat(total_chart, avg_chart).resolve_scale(color="independent").configure_axis(
-        labelColor='black',
-        titleColor='black'
-    ).configure_title(
-        color='black'
+    return (
+        alt.hconcat(total_chart, avg_chart)
+        .resolve_scale(color="independent")
+        .configure_axis(labelColor="black", titleColor="black")
+        .configure_title(color="black")
     )
 
 
+# Chart creation functions
 def create_performance_radar_plotly(metrics_for_radar):
     """Create performance radar chart with Plotly"""
     fig = go.Figure()
@@ -466,19 +534,30 @@ def create_performance_radar_plotly(metrics_for_radar):
                 name=player_data["Player"],
                 line=dict(width=5),
                 opacity=0.7,
-                hoverlabel=dict(bgcolor='lightgrey', font_color='black')
+                hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
             )
         )
 
     fig.update_layout(
         polar=dict(
             radialaxis=dict(visible=True, range=[0, 100]),
-            angularaxis=dict(color='black')
+            angularaxis=dict(color="black"),
         ),
         height=600,
         title="Multi-Dimensional Performance Radar (Interactive)",
-        font=dict(color='black'),
-        modebar=dict(remove=['pan2d', 'select2d', 'lasso2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'])
+        font=dict(color="black"),
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
     )
 
     return fig
@@ -552,28 +631,40 @@ def create_performance_radar_altair(metrics_for_radar):
         alt.Chart(melted_df)
         .mark_line(strokeWidth=5, opacity=0.8)
         .encode(
-            x=alt.X("Metric:N", title="Performance Metrics", axis=alt.Axis(labelColor='black', titleColor='black')),
-            y=alt.Y("Value:Q", title="Score (0-100)", scale=alt.Scale(domain=[0, 100]), axis=alt.Axis(labelColor='black', titleColor='black')),
-            color=alt.Color("Player:N", scale=alt.Scale(scheme="category10"), legend=alt.Legend(labelColor='black', titleColor='black')),
+            x=alt.X(
+                "Metric:N",
+                title="Performance Metrics",
+                axis=alt.Axis(labelColor="black", titleColor="black"),
+            ),
+            y=alt.Y(
+                "Value:Q",
+                title="Score (0-100)",
+                scale=alt.Scale(domain=[0, 100]),
+                axis=alt.Axis(labelColor="black", titleColor="black"),
+            ),
+            color=alt.Color(
+                "Player:N",
+                scale=alt.Scale(scheme="category10"),
+                legend=alt.Legend(labelColor="black", titleColor="black"),
+            ),
             tooltip=["Player:N", "Metric:N", "Value:Q"],
         )
         .properties(
             width=600,
             height=400,
-            title=alt.TitleParams(text="Multi-Dimensional Performance (Parallel Coordinates)", color='black'),
+            title=alt.TitleParams(
+                text="Multi-Dimensional Performance (Parallel Coordinates)",
+                color="black",
+            ),
         )
-        .configure_axis(
-            labelColor='black',
-            titleColor='black'
-        )
-        .configure_title(
-            color='black'
-        )
+        .configure_axis(labelColor="black", titleColor="black")
+        .configure_title(color="black")
     )
 
     return chart
 
 
+# Chart creation functions
 def create_heatmap_plotly(h2h_matrix):
     """Create head-to-head heatmap with Plotly"""
     # Find the maximum absolute value for symmetric color scale
@@ -591,27 +682,25 @@ def create_heatmap_plotly(h2h_matrix):
 
     fig.update_layout(
         height=400,
-        font=dict(color='black'),
-        modebar=dict(remove=['pan2d', 'select2d', 'lasso2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'])
-    )
-    
-    fig.update_coloraxes(showscale=False)
-    fig.update_traces(hoverlabel=dict(bgcolor='lightgrey', font_color='black'))
-    
-    return fig
-
-
-def create_heatmap_streamlit(h2h_matrix):
-    """Create head-to-head matrix with Streamlit native"""
-    st.subheader("Head-to-Head Win-Loss Differential (Simple)")
-    # Create symmetric color scale around 0
-    max_abs_value = max(abs(h2h_matrix.values.min()), abs(h2h_matrix.values.max()))
-    st.dataframe(
-        h2h_matrix.style.background_gradient(
-            cmap="RdYlGn_r", vmin=-max_abs_value, vmax=max_abs_value
+        font=dict(color="black"),
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
         ),
-        use_container_width=True,
     )
+
+    fig.update_coloraxes(showscale=False)
+    fig.update_traces(hoverlabel=dict(bgcolor="lightgrey", font_color="black"))
+
+    return fig
 
 
 def create_heatmap_altair(h2h_matrix):
@@ -632,19 +721,31 @@ def create_heatmap_altair(h2h_matrix):
         alt.Chart(h2h_long)
         .mark_rect()
         .encode(
-            x=alt.X("Opponent:N", title="Opponent", axis=alt.Axis(labelColor='black', titleColor='black')),
-            y=alt.Y("Player:N", title="Player", axis=alt.Axis(labelColor='black', titleColor='black')),
+            x=alt.X(
+                "Opponent:N",
+                title="Opponent",
+                axis=alt.Axis(labelColor="black", titleColor="black"),
+            ),
+            y=alt.Y(
+                "Player:N",
+                title="Player",
+                axis=alt.Axis(labelColor="black", titleColor="black"),
+            ),
             color=alt.Color(
                 "Win_Differential:Q",
                 scale=alt.Scale(
                     scheme="redyellowgreen", domain=[-max_abs_value, 0, max_abs_value]
                 ),
-                legend=None
+                legend=None,
             ),
             tooltip=["Player:N", "Opponent:N", "Win_Differential:Q"],
         )
         .properties(
-            width=400, height=400, title=alt.TitleParams(text="Head-to-Head Win-Loss Differential (Altair)", color='black')
+            width=400,
+            height=400,
+            title=alt.TitleParams(
+                text="Head-to-Head Win-Loss Differential (Altair)", color="black"
+            ),
         )
     )
 
@@ -656,15 +757,14 @@ def create_heatmap_altair(h2h_matrix):
             x=alt.X("Opponent:N"),
             y=alt.Y("Player:N"),
             text=alt.Text("Win_Differential:Q"),
-            color=alt.value("black")
+            color=alt.value("black"),
         )
     )
 
-    return (chart + text).configure_axis(
-        labelColor='black',
-        titleColor='black'
-    ).configure_title(
-        color='black'
+    return (
+        (chart + text)
+        .configure_axis(labelColor="black", titleColor="black")
+        .configure_title(color="black")
     )
 
 
@@ -685,32 +785,6 @@ if stats_result is None:
     st.markdown("- 📊 Beautiful interactive charts")
 else:
     player_stats, scores_df, total_games, total_age, age_games = stats_result
-
-    # Overview metrics - updated as requested
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        highest_score = int(scores_df["score"].max())
-        st.metric("🔥 Highest Score", highest_score, border=True)
-
-    with col2:
-        lowest_score = int(scores_df["score"].min())
-        st.metric("📉 Lowest Score", lowest_score, border=True)
-
-    with col3:
-        avg_score_per_game = scores_df["score"].mean()
-        st.metric("📊 Avg Score/Game", f"{avg_score_per_game:.1f}", border=True)
-
-    with col4:
-        # Calculate average age per game
-        if age_games > 0:
-            avg_age_per_game = total_age / age_games
-            st.metric("🎲 Avg Age/Game", f"{avg_age_per_game:.1f}", border=True)
-        else:
-            st.metric("🎲 Avg Age/Game", "N/A", border=True)
-
-    # Current Champions Section
-    st.subheader("🏆 Current Champions")
 
     # Find leaders in different categories
     ranking_leader = max(
@@ -766,7 +840,7 @@ else:
     # Chart style selector
     cumulative_style = st.radio(
         "Select chart style:",
-        ["Interactive (Plotly)", "Simple (Streamlit)", "Advanced (Altair)"],
+        ["Interactive (Plotly)", "Advanced (Altair)"],
         key="cumulative_style",
         horizontal=True,
     )
@@ -794,8 +868,6 @@ else:
         if cumulative_style == "Interactive (Plotly)":
             fig_cumulative = create_cumulative_chart_plotly(cumulative_df)
             st.plotly_chart(fig_cumulative, use_container_width=True)
-        elif cumulative_style == "Simple (Streamlit)":
-            create_cumulative_chart_streamlit(cumulative_df)
         else:
             chart_cumulative = create_cumulative_chart_altair(cumulative_df)
             st.altair_chart(chart_cumulative, use_container_width=True)
@@ -811,7 +883,7 @@ else:
     # Chart style selector
     wins_style = st.radio(
         "Select chart style:",
-        ["Interactive (Plotly)", "Simple (Streamlit)", "Advanced (Altair)"],
+        ["Interactive (Plotly)", "Advanced (Altair)"],
         key="wins_style",
         horizontal=True,
     )
@@ -824,8 +896,6 @@ else:
     if wins_style == "Interactive (Plotly)":
         fig_wins = create_wins_chart_plotly(wins_df)
         st.plotly_chart(fig_wins, use_container_width=True)
-    elif wins_style == "Simple (Streamlit)":
-        create_wins_chart_streamlit(wins_df)
     else:
         chart_wins = create_wins_chart_altair(wins_df)
         st.altair_chart(chart_wins, use_container_width=True)
@@ -862,7 +932,7 @@ else:
     # Chart style selector
     ranking_style = st.radio(
         "Select chart style:",
-        ["Interactive (Plotly)", "Simple (Streamlit)", "Advanced (Altair)"],
+        ["Interactive (Plotly)", "Advanced (Altair)"],
         key="ranking_style",
         horizontal=True,
     )
@@ -880,8 +950,6 @@ else:
     if ranking_style == "Interactive (Plotly)":
         fig_ranking = create_ranking_chart_plotly(ranking_df)
         st.plotly_chart(fig_ranking, use_container_width=True)
-    elif ranking_style == "Simple (Streamlit)":
-        create_ranking_chart_streamlit(ranking_df)
     else:
         chart_ranking = create_ranking_chart_altair(ranking_df)
         st.altair_chart(chart_ranking, use_container_width=True)
@@ -968,7 +1036,7 @@ else:
     # Chart style selector
     heatmap_style = st.radio(
         "Select chart style:",
-        ["Interactive (Plotly)", "Simple (Streamlit)", "Advanced (Altair)"],
+        ["Interactive (Plotly)", "Advanced (Altair)"],
         key="heatmap_style",
         horizontal=True,
     )
@@ -1003,8 +1071,6 @@ else:
     if heatmap_style == "Interactive (Plotly)":
         fig_h2h = create_heatmap_plotly(h2h_matrix)
         st.plotly_chart(fig_h2h, use_container_width=True)
-    elif heatmap_style == "Simple (Streamlit)":
-        create_heatmap_streamlit(h2h_matrix)
     else:
         chart_h2h = create_heatmap_altair(h2h_matrix)
         st.altair_chart(chart_h2h, use_container_width=True)
