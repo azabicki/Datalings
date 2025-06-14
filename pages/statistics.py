@@ -5,12 +5,10 @@ import functions.database as db
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
-from datetime import datetime, timedelta
-import calendar
-from scipy import stats
-import plotly.figure_factory as ff
+from scipy.stats import gaussian_kde
+from pandas import PeriodIndex
+
 
 st.set_page_config(page_title="Statistics", layout=ut.app_layout)
 
@@ -21,73 +19,19 @@ auth.login()
 ut.default_style()
 ut.create_sidebar()
 
-# Custom CSS for better styling
-st.markdown(
-    """
-<style>
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: white;
-        margin: 0.5rem 0;
-        text-align: center;
-    }
-    .stat-card {
-        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: #333;
-        margin: 0.5rem 0;
-        text-align: center;
-    }
-    .highlight-card {
-        background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: #333;
-        margin: 0.5rem 0;
-        text-align: center;
-    }
-    .record-card {
-        background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: #333;
-        margin: 0.5rem 0;
-        text-align: center;
-    }
-    .superhost-card {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        padding: 1.5rem;
-        border-radius: 0.75rem;
-        color: white;
-        margin: 1rem 0;
-        text-align: center;
-        border: 3px solid #ffd700;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-    .player-record-card {
-        background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: #333;
-        margin: 0.5rem 0;
-        text-align: center;
-    }
-</style>
-""",
-    unsafe_allow_html=True,
-)
 
-def get_all_game_scores():
-    """Get all game scores with game details"""
+# Cache data loading for performance ###########################################
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def load_all_game_data():
+    """Load and process all game data efficiently with optimized queries"""
     games_df = db.get_all_games()
     if games_df.empty:
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), {}
 
     all_game_data = []
     game_stats = []
+    host_selections = []
+    total_ages_played = 0
 
     for _, game_row in games_df.iterrows():
         game_id = int(game_row["id"])
@@ -99,913 +43,596 @@ def get_all_game_scores():
         if scores:
             game_scores = [score["score"] for score in scores]
             game_duration = None
-            game_ages = []
+            num_ages = None
+            host_selection = None
 
-            # Extract duration and ages from settings
+            # Extract settings more efficiently
             for setting in game_details.get("settings", []):
-                setting_name_lower = setting["setting_name"].lower()
+                setting_name = setting["setting_name"]
+                setting_name_lower = setting_name.lower()
+
                 if "duration" in setting_name_lower or "time" in setting_name_lower:
                     try:
                         game_duration = float(setting["value"])
                     except:
                         pass
-                elif "age" in setting_name_lower:
+                elif "# ages" in setting_name_lower or setting_name_lower == "ages":
                     try:
-                        age_val = float(setting["value"])
-                        game_ages.append(age_val)
+                        num_ages = int(float(setting["value"]))
+                        total_ages_played += num_ages
                     except:
                         pass
+                elif "host" in setting_name_lower:
+                    host_selection = setting["value"]
+                    host_selections.append(host_selection)
 
-            avg_age = np.mean(game_ages) if game_ages else None
-            total_ages = len(game_ages)
+            game_total_score = sum(game_scores)
 
-            game_stats.append({
-                "game_id": game_id,
-                "game_date": game_date,
-                "player_count": len(scores),
-                "total_score": sum(game_scores),
-                "avg_score": np.mean(game_scores),
-                "min_score": min(game_scores),
-                "max_score": max(game_scores),
-                "score_range": max(game_scores) - min(game_scores),
-                "duration": game_duration,
-                "avg_age": avg_age,
-                "total_ages": total_ages
-            })
+            game_stats.append(
+                {
+                    "game_id": game_id,
+                    "game_date": game_date,
+                    "player_count": len(scores),
+                    "total_score": game_total_score,
+                    "avg_score": np.mean(game_scores),
+                    "min_score": min(game_scores),
+                    "max_score": max(game_scores),
+                    "score_range": max(game_scores) - min(game_scores),
+                    "duration": game_duration,
+                    "num_ages": num_ages,
+                    "host_selection": host_selection,
+                }
+            )
 
             # Individual score data
             for score_data in scores:
-                all_game_data.append({
-                    "game_id": game_id,
-                    "game_date": game_date,
-                    "player_id": score_data["player_id"],
-                    "player_name": score_data["player_name"],
-                    "score": score_data["score"],
-                    "duration": game_duration,
-                    "avg_age": avg_age,
-                    "total_ages": total_ages
-                })
+                all_game_data.append(
+                    {
+                        "game_id": game_id,
+                        "game_date": game_date,
+                        "player_id": score_data["player_id"],
+                        "player_name": score_data["player_name"],
+                        "score": score_data["score"],
+                        "duration": game_duration,
+                        "num_ages": num_ages,
+                        "host_selection": host_selection,
+                    }
+                )
 
-    return pd.DataFrame(all_game_data), pd.DataFrame(game_stats)
+    scores_df = pd.DataFrame(all_game_data)
+    games_df = pd.DataFrame(game_stats)
 
-def find_record_holders(scores_df):
-    """Find players with highest and lowest scores"""
-    if scores_df.empty:
-        return None, None, None, None
-    
-    max_score_idx = scores_df["score"].idxmax()
-    min_score_idx = scores_df["score"].idxmin()
-    
-    highest_scorer = scores_df.loc[max_score_idx, "player_name"]
-    highest_score = scores_df.loc[max_score_idx, "score"]
-    
-    lowest_scorer = scores_df.loc[min_score_idx, "player_name"]
-    lowest_score = scores_df.loc[min_score_idx, "score"]
-    
-    return highest_scorer, highest_score, lowest_scorer, lowest_score
+    # Calculate summary stats
+    stats = {}
+    if not scores_df.empty and not games_df.empty:
+        # Find superhost (most frequent host selection)
+        superhost = "N/A"
+        superhost_count = 0
+        if host_selections:
+            from collections import Counter
 
-def find_superhost(scores_df):
-    """Find the player who appears in the most games (Superhost)"""
-    if scores_df.empty:
-        return None, 0
-    
-    player_game_counts = scores_df.groupby("player_name")["game_id"].nunique().sort_values(ascending=False)
-    if len(player_game_counts) > 0:
-        superhost = player_game_counts.index[0]
-        game_count = player_game_counts.iloc[0]
-        return superhost, game_count
-    
-    return None, 0
+            host_counts = Counter(host_selections)
+            if host_counts:
+                superhost = host_counts.most_common(1)[0][0]
+                superhost_count = host_counts.most_common(1)[0][1]
+                # Check for ties
+                max_count = host_counts.most_common(1)[0][1]
+                tied_hosts = [
+                    host for host, count in host_counts.items() if count == max_count
+                ]
+                if len(tied_hosts) > 1:
+                    superhost = ", ".join(tied_hosts)
 
-def calculate_game_statistics(scores_df, games_df):
-    """Calculate comprehensive game statistics"""
-    if scores_df.empty or games_df.empty:
-        return {}
+        # Calculate average score per game correctly (sum of scores per game, then mean)
+        avg_score_per_game = games_df["total_score"].mean()
 
-    # Basic game statistics
-    total_games = len(games_df)
-    total_players_sessions = len(scores_df)
-    unique_players = scores_df["player_name"].nunique()
-
-    # Score statistics
-    all_scores = scores_df["score"].values
-    avg_score = np.mean(all_scores)
-    median_score = np.median(all_scores)
-    min_score = np.min(all_scores)
-    max_score = np.max(all_scores)
-    score_std = np.std(all_scores)
-
-    # Game size statistics
-    avg_players_per_game = games_df["player_count"].mean()
-    min_players_per_game = games_df["player_count"].min()
-    max_players_per_game = games_df["player_count"].max()
-
-    # Duration statistics
-    duration_data = games_df.dropna(subset=["duration"])
-    timed_games_count = len(duration_data)
-    if not duration_data.empty:
-        avg_duration = duration_data["duration"].mean()
-        min_duration = duration_data["duration"].min()
-        max_duration = duration_data["duration"].max()
-        total_duration = duration_data["duration"].sum()
-    else:
-        avg_duration = min_duration = max_duration = total_duration = None
-
-    # Age statistics (ages played during games)
-    age_data = games_df.dropna(subset=["avg_age"])
-    if not age_data.empty:
-        avg_age_played = age_data["avg_age"].mean()
-        min_age_played = age_data["avg_age"].min()
-        max_age_played = age_data["avg_age"].max()
-        total_ages_played = games_df["total_ages"].sum()
-    else:
-        avg_age_played = min_age_played = max_age_played = total_ages_played = None
-
-    # Temporal statistics
-    games_df["game_date"] = pd.to_datetime(games_df["game_date"])
-    if not games_df.empty:
-        first_game = games_df["game_date"].min()
-        last_game = games_df["game_date"].max()
-        days_playing = (last_game - first_game).days + 1
-        games_per_day = total_games / max(days_playing, 1)
-    else:
-        first_game = last_game = None
-        days_playing = games_per_day = 0
-
-    # Player participation stats
-    player_participation = scores_df.groupby("player_name").agg({
-        "game_id": "nunique",
-        "score": ["mean", "std"]
-    }).round(2)
-    
-    most_active_player = player_participation["game_id"]["nunique"].idxmax() if not player_participation.empty else None
-    most_active_count = player_participation["game_id"]["nunique"].max() if not player_participation.empty else 0
-
-    return {
-        "total_games": total_games,
-        "total_players_sessions": total_players_sessions,
-        "unique_players": unique_players,
-        "avg_score": avg_score,
-        "median_score": median_score,
-        "min_score": min_score,
-        "max_score": max_score,
-        "score_std": score_std,
-        "score_range": max_score - min_score,
-        "avg_players_per_game": avg_players_per_game,
-        "min_players_per_game": min_players_per_game,
-        "max_players_per_game": max_players_per_game,
-        "avg_duration": avg_duration,
-        "min_duration": min_duration,
-        "max_duration": max_duration,
-        "total_duration": total_duration,
-        "timed_games_count": timed_games_count,
-        "avg_age_played": avg_age_played,
-        "min_age_played": min_age_played,
-        "max_age_played": max_age_played,
-        "total_ages_played": total_ages_played,
-        "first_game": first_game,
-        "last_game": last_game,
-        "days_playing": days_playing,
-        "games_per_day": games_per_day,
-        "most_active_player": most_active_player,
-        "most_active_count": most_active_count
-    }
-
-def create_score_distribution_chart_with_kde(scores_df):
-    """Create score distribution histogram with KDE overlay"""
-    if scores_df.empty:
-        return None
-
-    # Create figure with secondary y-axis
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    # Add histogram
-    fig.add_trace(
-        go.Histogram(
-            x=scores_df["score"],
-            nbinsx=20,
-            name="Score Frequency",
-            marker_color="rgba(102, 126, 234, 0.7)",
-            yaxis="y"
-        ),
-        secondary_y=False,
-    )
-    
-    # Add KDE
-    try:
-        kde = stats.gaussian_kde(scores_df["score"])
-        x_range = np.linspace(scores_df["score"].min(), scores_df["score"].max(), 100)
-        kde_values = kde(x_range)
-        
-        fig.add_trace(
-            go.Scatter(
-                x=x_range,
-                y=kde_values,
-                mode="lines",
-                name="Density",
-                line=dict(color="red", width=3),
-                yaxis="y2"
+        stats = {
+            "total_games": len(games_df),
+            "total_points": scores_df["score"].sum(),
+            "total_duration": (
+                games_df["duration"].sum()
+                if bool(games_df["duration"].notna().any())
+                else 0
             ),
-            secondary_y=True,
-        )
-    except:
-        pass  # Skip KDE if it fails
-    
-    # Update layout
-    fig.update_layout(
-        title="Score Distribution with Density Curve",
-        height=400,
-        title_font_size=16,
-        showlegend=True
-    )
-    
-    fig.update_xaxes(title_text="Score", title_font_size=14)
-    fig.update_yaxes(title_text="Frequency", secondary_y=False, title_font_size=14)
-    fig.update_yaxes(title_text="Density", secondary_y=True, title_font_size=14)
-    
-    return fig
+            "total_ages_played": total_ages_played,
+            "avg_score_per_player_per_game": scores_df["score"].mean(),
+            "avg_score_per_game": avg_score_per_game,
+            "highest_score": scores_df["score"].max(),
+            "highest_score_player": (
+                scores_df.loc[scores_df["score"].idxmax(), "player_name"]
+                if not scores_df.empty
+                else None
+            ),
+            "lowest_score": scores_df["score"].min(),
+            "lowest_score_player": (
+                scores_df.loc[scores_df["score"].idxmin(), "player_name"]
+                if not scores_df.empty
+                else None
+            ),
+            "avg_score_range": games_df["score_range"].mean(),
+            "shortest_game": (
+                games_df["duration"].min()
+                if bool(games_df["duration"].notna().any())
+                else None
+            ),
+            "longest_game": (
+                games_df["duration"].max()
+                if bool(games_df["duration"].notna().any())
+                else None
+            ),
+            "avg_duration": (
+                games_df["duration"].mean()
+                if bool(games_df["duration"].notna().any())
+                else None
+            ),
+            "lowest_ages": (
+                games_df["num_ages"].min()
+                if bool(games_df["num_ages"].notna().any())
+                else None
+            ),
+            "highest_ages": (
+                games_df["num_ages"].max()
+                if bool(games_df["num_ages"].notna().any())
+                else None
+            ),
+            "avg_ages": (
+                games_df["num_ages"].mean()
+                if bool(games_df["num_ages"].notna().any())
+                else None
+            ),
+            "superhost": superhost,
+            "superhost_count": superhost_count,
+        }
 
-def create_games_over_time_chart(games_df):
-    """Create games played over time chart"""
-    if games_df.empty:
-        return None
+    return scores_df, games_df, stats
 
-    games_df["game_date"] = pd.to_datetime(games_df["game_date"])
-    games_df = games_df.sort_values("game_date")
 
-    # Group by month
-    games_df["month"] = games_df["game_date"].dt.to_period("M")
-    monthly_games = games_df.groupby("month").size().reset_index(name="games_count")
-    monthly_games["month"] = monthly_games["month"].astype(str)
+def format_duration(minutes):
+    """Format duration in minutes to h:mm h format"""
+    if pd.isna(minutes) or minutes is None:
+        return "N/A"
+    hours = int(minutes // 60)
+    mins = int(minutes % 60)
+    return f"{hours}:{mins:02d}h"
 
-    fig = px.line(
-        monthly_games,
-        x="month",
-        y="games_count",
-        title="Games Played Over Time",
-        labels={"month": "Month", "games_count": "Number of Games"},
-        markers=True,
-        color_discrete_sequence=["#764ba2"]
-    )
 
-    fig.update_layout(
-        height=400,
-        title_font_size=16,
-        xaxis_title_font_size=14,
-        yaxis_title_font_size=14,
-        xaxis_tickangle=45
-    )
-    
-    return fig
+def create_metric_tile(title, value):
+    """Create a styled metric tile with border"""
+    if isinstance(value, float):
+        if value > 1000:
+            value = f"{value:,.0f}"
+        else:
+            value = f"{value:.1f}"
 
-def create_player_count_distribution(games_df):
-    """Create player count distribution chart"""
-    if games_df.empty:
-        return None
-    
-    player_count_dist = games_df["player_count"].value_counts().sort_index()
-    
-    fig = px.bar(
-        x=player_count_dist.index,
-        y=player_count_dist.values,
-        title="Distribution of Player Count per Game",
-        labels={"x": "Number of Players", "y": "Number of Games"},
-        color_discrete_sequence=["#f093fb"]
-    )
-    
-    fig.update_layout(
-        height=400,
-        title_font_size=16,
-        xaxis_title_font_size=14,
-        yaxis_title_font_size=14,
-        showlegend=False
-    )
-    
-    return fig
+    st.metric(title, value, border=True)
 
-def create_duration_vs_scores_chart(games_df):
-    """Create duration vs average score scatter plot"""
-    duration_data = games_df.dropna(subset=["duration"])
-    if duration_data.empty:
-        return None
-    
-    fig = px.scatter(
-        duration_data,
-        x="duration",
-        y="avg_score",
-        size="player_count",
-        title="Game Duration vs Average Score",
-        labels={"duration": "Duration (minutes)", "avg_score": "Average Score", "player_count": "Players"},
-        color="player_count",
-        color_continuous_scale="viridis",
-        hover_data=["game_date"]
-    )
-    
-    fig.update_layout(
-        height=400,
-        title_font_size=16,
-        xaxis_title_font_size=14,
-        yaxis_title_font_size=14
-    )
-    
-    return fig
 
-def create_ages_vs_scores_chart(games_df):
-    """Create ages played vs average score scatter plot"""
-    age_data = games_df.dropna(subset=["avg_age"])
-    if age_data.empty:
-        return None
-    
-    fig = px.scatter(
-        age_data,
-        x="avg_age",
-        y="avg_score",
-        size="player_count",
-        title="Ages Played vs Average Score",
-        labels={"avg_age": "Average Age Played", "avg_score": "Average Score", "player_count": "Players"},
-        color="total_ages",
-        color_continuous_scale="plasma",
-        hover_data=["game_date", "total_ages"]
-    )
-    
-    fig.update_layout(
-        height=400,
-        title_font_size=16,
-        xaxis_title_font_size=14,
-        yaxis_title_font_size=14
-    )
-    
-    return fig
-
-def create_score_progression_chart(scores_df):
-    """Create score progression over time"""
-    if scores_df.empty:
-        return None
-    
-    scores_df["game_date"] = pd.to_datetime(scores_df["game_date"])
-    scores_df = scores_df.sort_values("game_date")
-    
-    # Calculate rolling average
-    scores_df["rolling_avg"] = scores_df["score"].rolling(window=5, min_periods=1).mean()
-    
-    fig = px.scatter(
-        scores_df,
-        x="game_date",
-        y="score",
-        title="Score Progression Over Time",
-        labels={"game_date": "Date", "score": "Score"},
-        opacity=0.6,
-        color_discrete_sequence=["#667eea"]
-    )
-    
-    # Add rolling average line
-    fig.add_trace(
-        go.Scatter(
-            x=scores_df["game_date"],
-            y=scores_df["rolling_avg"],
-            mode="lines",
-            name="5-Game Moving Average",
-            line=dict(color="red", width=3)
-        )
-    )
-    
-    fig.update_layout(
-        height=400,
-        title_font_size=16,
-        xaxis_title_font_size=14,
-        yaxis_title_font_size=14
-    )
-    
-    return fig
-
-def create_day_of_week_chart(games_df):
-    """Create day of week gaming pattern chart"""
-    if games_df.empty:
-        return None
-    
-    games_df["game_date"] = pd.to_datetime(games_df["game_date"])
-    games_df["day_of_week"] = games_df["game_date"].dt.day_name()
-    
-    day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    day_counts = games_df["day_of_week"].value_counts().reindex(day_order, fill_value=0)
-    
-    fig = px.bar(
-        x=day_counts.index,
-        y=day_counts.values,
-        title="Games Played by Day of Week",
-        labels={"x": "Day of Week", "y": "Number of Games"},
-        color_discrete_sequence=["#84fab0"]
-    )
-    
-    fig.update_layout(
-        height=400,
-        title_font_size=16,
-        xaxis_title_font_size=14,
-        yaxis_title_font_size=14,
-        showlegend=False
-    )
-    
-    return fig
-
-def create_score_consistency_chart(scores_df):
-    """Create score consistency chart by player"""
-    if scores_df.empty:
-        return None
-    
-    player_stats = scores_df.groupby("player_name").agg({
-        "score": ["mean", "std", "count"]
-    }).round(2)
-    
-    player_stats.columns = ["avg_score", "score_std", "game_count"]
-    player_stats = player_stats[player_stats["game_count"] >= 3]  # Only players with 3+ games
-    
-    if player_stats.empty:
-        return None
-    
-    fig = px.scatter(
-        player_stats.reset_index(),
-        x="avg_score",
-        y="score_std",
-        size="game_count",
-        title="Score Consistency by Player (Lower std = More Consistent)",
-        labels={"avg_score": "Average Score", "score_std": "Score Standard Deviation", "game_count": "Games Played"},
-        text="player_name",
-        color_discrete_sequence=["#f5576c"]
-    )
-    
-    fig.update_traces(textposition="top center")
-    
-    fig.update_layout(
-        height=500,
-        title_font_size=16,
-        xaxis_title_font_size=14,
-        yaxis_title_font_size=14
-    )
-    
-    return fig
-
-# Main app
-st.header("🎮 Game Statistics")
-
-# Load data
-scores_df, games_df = get_all_game_scores()
+# Load data ####################################################################
+scores_df, games_df, summary_stats = load_all_game_data()
 
 if scores_df.empty:
-    st.warning("No game data available yet. Play some games to see statistics!")
+    st.warning("No game data available.")
     st.stop()
 
-# Calculate statistics
-stats = calculate_game_statistics(scores_df, games_df)
 
-# Find record holders and superhost
-highest_scorer, highest_score, lowest_scorer, lowest_score = find_record_holders(scores_df)
-superhost, superhost_games = find_superhost(scores_df)
+# Overview section #############################################################
+@st.fragment
+def overview_section():
+    st.subheader("Overview")
 
-# Overview section
-st.subheader("📊 Overview")
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <h3 style="margin: 0; font-size: 2rem;">{stats['total_games']}</h3>
-            <p style="margin: 0;">Total Games</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with col2:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <h3 style="margin: 0; font-size: 2rem;">{stats['unique_players']}</h3>
-            <p style="margin: 0;">Unique Players</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with col3:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <h3 style="margin: 0; font-size: 2rem;">{stats['total_players_sessions']}</h3>
-            <p style="margin: 0;">Player Sessions</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with col4:
-    if stats['days_playing'] > 0:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <h3 style="margin: 0; font-size: 2rem;">{stats['games_per_day']:.1f}</h3>
-                <p style="margin: 0;">Games per Day</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-# Superhost section
-if superhost:
-    st.subheader("👑 Superhost")
-    st.markdown(
-        f"""
-        <div class="superhost-card">
-            <h2 style="margin: 0; font-size: 2.5rem;">🏆 {superhost}</h2>
-            <h3 style="margin: 0.5rem 0 0 0;">Superhost with {superhost_games} games!</h3>
-            <p style="margin: 0.5rem 0 0 0;">Most active player in the community</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# Score Statistics with record holders
-st.subheader("🎯 Score Statistics")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown(
-        f"""
-        <div class="stat-card">
-            <h4 style="margin: 0;">Average Score</h4>
-            <h3 style="margin: 0; font-size: 1.5rem;">{stats['avg_score']:.1f}</h3>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    st.markdown(
-        f"""
-        <div class="stat-card">
-            <h4 style="margin: 0;">Median Score</h4>
-            <h3 style="margin: 0; font-size: 1.5rem;">{stats['median_score']:.1f}</h3>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with col2:
-    if highest_scorer:
-        st.markdown(
-            f"""
-            <div class="player-record-card">
-                <h4 style="margin: 0;">🥇 Highest Score</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{highest_score}</h3>
-                <p style="margin: 0; font-size: 0.9rem;"><strong>{highest_scorer}</strong></p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
-    if lowest_scorer:
-        st.markdown(
-            f"""
-            <div class="player-record-card">
-                <h4 style="margin: 0;">📉 Lowest Score</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{lowest_score}</h3>
-                <p style="margin: 0; font-size: 0.9rem;"><strong>{lowest_scorer}</strong></p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-with col3:
-    st.markdown(
-        f"""
-        <div class="record-card">
-            <h4 style="margin: 0;">Score Range</h4>
-            <h3 style="margin: 0; font-size: 1.5rem;">{stats['score_range']}</h3>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    st.markdown(
-        f"""
-        <div class="record-card">
-            <h4 style="margin: 0;">Score Std Dev</h4>
-            <h3 style="margin: 0; font-size: 1.5rem;">{stats['score_std']:.1f}</h3>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# Game Statistics
-st.subheader("🎲 Game Statistics")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown(
-        f"""
-        <div class="stat-card">
-            <h4 style="margin: 0;">Avg Players per Game</h4>
-            <h3 style="margin: 0; font-size: 1.5rem;">{stats['avg_players_per_game']:.1f}</h3>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with col2:
-    st.markdown(
-        f"""
-        <div class="stat-card">
-            <h4 style="margin: 0;">Min Players</h4>
-            <h3 style="margin: 0; font-size: 1.5rem;">{stats['min_players_per_game']}</h3>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with col3:
-    st.markdown(
-        f"""
-        <div class="stat-card">
-            <h4 style="margin: 0;">Max Players</h4>
-            <h3 style="margin: 0; font-size: 1.5rem;">{stats['max_players_per_game']}</h3>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# Duration Statistics (if available)
-if stats['avg_duration'] is not None:
-    st.subheader("⏱️ Duration Statistics")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <h4 style="margin: 0;">Avg Duration</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['avg_duration']:.0f} min</h3>
-                <p style="margin: 0; font-size: 0.8rem;">({stats['timed_games_count']} timed games)</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
-    with col2:
-        st.markdown(
-            f"""
-            <div class="highlight-card">
-                <h4 style="margin: 0;">Shortest Game</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['min_duration']:.0f} min</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
-    with col3:
-        st.markdown(
-            f"""
-            <div class="highlight-card">
-                <h4 style="margin: 0;">Longest Game</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['max_duration']:.0f} min</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
-    with col4:
-        st.markdown(
-            f"""
-            <div class="record-card">
-                <h4 style="margin: 0;">Total Time Played</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['total_duration']:.0f} min</h3>
-                <p style="margin: 0; font-size: 0.8rem;">({stats['total_duration']/60:.1f} hours)</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-# Ages Statistics (ages played during games)
-if stats['avg_age_played'] is not None:
-    st.subheader("🎯 Ages Played Statistics")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <h4 style="margin: 0;">Avg Age Played</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['avg_age_played']:.1f}</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
-    with col2:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <h4 style="margin: 0;">Youngest Age</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['min_age_played']:.0f}</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
-    with col3:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <h4 style="margin: 0;">Oldest Age</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['max_age_played']:.0f}</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
-    with col4:
-        st.markdown(
-            f"""
-            <div class="record-card">
-                <h4 style="margin: 0;">Total Ages Played</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['total_ages_played']}</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-# Temporal Statistics
-if stats['first_game'] is not None:
-    st.subheader("📅 Temporal Statistics")
+    # Two metrics per row
     col1, col2, col3 = st.columns(3)
-    
     with col1:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <h4 style="margin: 0;">First Game</h4>
-                <h3 style="margin: 0; font-size: 1.2rem;">{stats['first_game'].strftime('%Y-%m-%d')}</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
+        create_metric_tile("Total Games", summary_stats.get("total_games"))
     with col2:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <h4 style="margin: 0;">Latest Game</h4>
-                <h3 style="margin: 0; font-size: 1.2rem;">{stats['last_game'].strftime('%Y-%m-%d')}</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    
+        create_metric_tile("Total Points", summary_stats.get("total_points"))
     with col3:
-        st.markdown(
-            f"""
-            <div class="stat-card">
-                <h4 style="margin: 0;">Days Playing</h4>
-                <h3 style="margin: 0; font-size: 1.5rem;">{stats['days_playing']}</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        create_metric_tile("Total Ages Played", summary_stats.get("total_ages_played"))
+
+    # Superhost tile (full width)
+    host = summary_stats.get("superhost", "N/A")
+    host_count = summary_stats.get("superhost_count", 0)
+    create_metric_tile(":material/home: Superhost", f"{host} ({host_count} times)")
+
+
+overview_section()
+
+
+# Time & Day section ###########################################################
+@st.fragment
+def time_day_section():
+    st.subheader("Time & Day")
+
+    # Duration tiles - two per row
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        total_time = summary_stats.get("total_duration", 0)
+        create_metric_tile("Total Time", format_duration(total_time))
+    with col2:
+        avg_dur = summary_stats.get("avg_duration")
+        create_metric_tile("Avg Duration", format_duration(avg_dur))
+    with col3:
+        shortest = summary_stats.get("shortest_game")
+        create_metric_tile("Shortest Game", format_duration(shortest))
+    with col4:
+        longest = summary_stats.get("longest_game")
+        create_metric_tile("Longest Game", format_duration(longest))
+
+    # Day of week chart
+    if not games_df.empty:
+        games_df_copy = games_df.copy()
+        games_df_copy["game_date"] = pd.to_datetime(games_df_copy["game_date"])
+        games_df_copy["day_of_week"] = games_df_copy["game_date"].dt.day_name()
+
+        day_order = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
+        day_counts = (
+            games_df_copy["day_of_week"].value_counts().reindex(day_order, fill_value=0)
         )
 
-# Charts section
-st.subheader("📈 Charts & Visualizations")
+        fig_dow = px.bar(
+            x=day_counts.index,
+            y=day_counts.values,
+            title="Games Played by Day of Week",
+            labels={"x": "", "y": "# Games"},
+            color_discrete_sequence=["#84fab0"],
+        )
 
-# Score distribution with KDE
-score_dist_chart = create_score_distribution_chart_with_kde(scores_df)
-if score_dist_chart:
-    st.plotly_chart(score_dist_chart, use_container_width=True)
+        fig_dow.update_layout(
+            height=300,
+            title_font_size=16,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            showlegend=False,
+            xaxis_tickangle=-45,
+        )
+        fig_dow.update_yaxes(dtick=1)
 
-col1, col2 = st.columns(2)
+        st.plotly_chart(fig_dow, use_container_width=True)
 
-with col1:
-    # Games over time
-    games_time_chart = create_games_over_time_chart(games_df)
-    if games_time_chart:
-        st.plotly_chart(games_time_chart, use_container_width=True)
+        # Monthly games chart - only show month names
+        games_df_copy["year_month"] = games_df_copy["game_date"].dt.to_period("M")
+        monthly_counts = games_df_copy["year_month"].value_counts().sort_index()
 
-with col2:
-    # Player count distribution
-    player_count_chart = create_player_count_distribution(games_df)
-    if player_count_chart:
-        st.plotly_chart(player_count_chart, use_container_width=True)
+        # Format month labels to show only month name
+        month_labels = [
+            period.to_timestamp().strftime("%b %Y")
+            for period in PeriodIndex(monthly_counts.index)
+        ]
 
-# Score progression over time
-score_progression_chart = create_score_progression_chart(scores_df)
-if score_progression_chart:
-    st.plotly_chart(score_progression_chart, use_container_width=True)
+        fig_monthly = px.bar(
+            x=month_labels,
+            y=monthly_counts.values,
+            title="Games Played by Month",
+            labels={"x": "", "y": "# Games"},
+            color_discrete_sequence=["#a8e6cf"],
+        )
 
-col1, col2 = st.columns(2)
+        fig_monthly.update_layout(
+            height=300,
+            title_font_size=16,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            showlegend=False,
+            xaxis_tickangle=-45,
+        )
+        fig_monthly.update_yaxes(dtick=1)
 
-with col1:
-    # Duration vs scores (if duration data is available)
-    if stats['avg_duration'] is not None:
-        duration_scores_chart = create_duration_vs_scores_chart(games_df)
-        if duration_scores_chart:
-            st.plotly_chart(duration_scores_chart, use_container_width=True)
+        st.plotly_chart(fig_monthly, use_container_width=True)
 
-with col2:
-    # Ages vs scores (if age data is available)
-    if stats['avg_age_played'] is not None:
-        ages_scores_chart = create_ages_vs_scores_chart(games_df)
-        if ages_scores_chart:
-            st.plotly_chart(ages_scores_chart, use_container_width=True)
 
-# Day of week pattern
-dow_chart = create_day_of_week_chart(games_df)
-if dow_chart:
-    st.plotly_chart(dow_chart, use_container_width=True)
+ut.h_spacer(1)
+st.divider()
+ut.h_spacer(1)
+time_day_section()
 
-# Score consistency chart
-consistency_chart = create_score_consistency_chart(scores_df)
-if consistency_chart:
-    st.plotly_chart(consistency_chart, use_container_width=True)
 
-# Fun facts section
-st.subheader("🎉 Fun Facts & Insights")
+# Ages section #################################################################
+@st.fragment
+def ages_section():
+    st.subheader("#Age Statistics")
 
-fun_facts = []
+    # Ages tiles - two per row
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        lowest_ages = summary_stats.get("lowest_ages")
+        create_metric_tile("Lowest #Ages", int(lowest_ages) if lowest_ages else "N/A")
+    with col2:
+        avg_ages = summary_stats.get("avg_ages")
+        create_metric_tile("Average #Ages", f"{avg_ages:.1f}" if avg_ages else "N/A")
+    with col3:
+        highest_ages = summary_stats.get("highest_ages")
+        create_metric_tile(
+            "Highest #Ages", int(highest_ages) if highest_ages else "N/A"
+        )
 
-if stats['total_games'] > 0:
-    fun_facts.append(f"🎮 You've played a total of {stats['total_games']} games!")
+    # Age per game chart
+    if not games_df.empty and bool(games_df["num_ages"].notna().any()):
+        ages_data = games_df.dropna(subset=["num_ages"]).copy()
+        ages_data = ages_data.sort_values("game_date")
+        ages_data["game_label"] = [f"Game {i+1}" for i in range(len(ages_data))]
 
-if stats['total_duration'] is not None:
-    hours = stats['total_duration'] / 60
-    if hours > 24:
-        days = hours / 24
-        fun_facts.append(f"⏰ Total gaming time: {hours:.1f} hours ({days:.1f} days)!")
-    else:
-        fun_facts.append(f"⏰ Total gaming time: {hours:.1f} hours!")
+        fig_ages = px.line(
+            ages_data,
+            x="game_label",
+            y="num_ages",
+            labels={"game_label": "", "num_ages": "# Ages"},
+            color_discrete_sequence=["#ff9999"],
+        )
+        fig_ages.update_traces(line=dict(width=3))  # Set line width to 3
+        fig_ages.update_yaxes(dtick=1, range=[ages_data["num_ages"].min() - 0.5, 16.5])
 
-if stats['score_range'] > 0:
-    fun_facts.append(f"📊 Score spread: {stats['score_range']} points between highest and lowest!")
+        fig_ages.update_layout(
+            title_text="",
+            height=300,
+            title_font_size=16,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            showlegend=False,
+            xaxis_tickangle=-45,
+        )
 
-if stats['max_players_per_game'] > stats['min_players_per_game']:
-    fun_facts.append(f"👥 Player range: {stats['min_players_per_game']} to {stats['max_players_per_game']} players per game!")
+        st.plotly_chart(fig_ages, use_container_width=True)
 
-if stats['games_per_day'] >= 1:
-    fun_facts.append(f"🔥 You're playing {stats['games_per_day']:.1f} games per day on average!")
 
-if highest_scorer and lowest_scorer:
-    if highest_scorer == lowest_scorer:
-        fun_facts.append(f"🎯 {highest_scorer} holds both the highest AND lowest score records!")
-    else:
-        fun_facts.append(f"🏆 Record holders: {highest_scorer} (highest) and {lowest_scorer} (lowest)")
+ut.h_spacer(1)
+st.divider()
+ut.h_spacer(1)
+ages_section()
 
-if superhost and stats['most_active_player']:
-    if superhost == stats['most_active_player']:
-        fun_facts.append(f"👑 {superhost} is both the Superhost and most active player!")
 
-if stats['total_ages_played'] and stats['total_ages_played'] > stats['total_games']:
-    avg_ages_per_game = stats['total_ages_played'] / stats['total_games']
-    fun_facts.append(f"🎯 Average of {avg_ages_per_game:.1f} different ages played per game!")
+# Score Statistics section #####################################################
+@st.fragment
+def score_statistics_section():
+    st.subheader("Score Statistics")
 
-# Gaming frequency insights
-if stats['days_playing'] > 0:
-    if stats['games_per_day'] > 2:
-        fun_facts.append("🚀 High-frequency gamers - more than 2 games per day!")
-    elif stats['games_per_day'] > 1:
-        fun_facts.append("🎲 Regular gamers - more than 1 game per day!")
-    elif stats['games_per_day'] > 0.5:
-        fun_facts.append("📅 Consistent gamers - playing every other day!")
+    # Score tiles - two per row
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        avg_game_score = summary_stats.get("avg_score_per_game")
+        create_metric_tile(
+            "Avg Score / Game", f"{avg_game_score:.1f}" if avg_game_score else "N/A"
+        )
+    with col2:
+        avg_score = summary_stats.get("avg_score_per_player_per_game")
+        create_metric_tile(
+            "Avg Score / Player", f"{avg_score:.1f}" if avg_score else "N/A"
+        )
+    with col3:
+        avg_range = summary_stats.get("avg_score_range")
+        create_metric_tile(
+            "Avg Score Range", f"{avg_range:.1f}" if avg_range else "N/A"
+        )
 
-# Score distribution insights
-if stats['score_std'] > 0:
-    cv = stats['score_std'] / stats['avg_score'] * 100  # Coefficient of variation
-    if cv > 50:
-        fun_facts.append("📈 High score variability - games have very different scoring patterns!")
-    elif cv < 20:
-        fun_facts.append("📊 Consistent scoring - games tend to have similar score ranges!")
+    col1, col2 = st.columns(2)
+    with col1:
+        highest = summary_stats.get("highest_score")
+        highest_player = summary_stats.get("highest_score_player")
+        create_metric_tile(
+            "Highest Score", f"{int(highest)} - {highest_player}" if highest else "N/A"
+        )
+    with col2:
+        lowest = summary_stats.get("lowest_score")
+        lowest_player = summary_stats.get("lowest_score_player")
+        create_metric_tile(
+            "Lowest Score", f"{int(lowest)} - {lowest_player}" if lowest else "N/A"
+        )
 
-# Display fun facts
-for fact in fun_facts:
-    st.info(fact)
+    # Score distribution chart with maximum 3 bins
+    if not scores_df.empty:
+        score_data = scores_df["score"].dropna().values
+        bin_width = 2
 
-if not fun_facts:
-    st.info("🎲 Play more games to unlock fun facts!")
+        # Histogram trace with bin width = 3
+        hist_trace = go.Histogram(
+            x=score_data,
+            xbins=dict(size=bin_width),  # Set bin width
+            marker_color="#ff9999",
+            name="Histogram",
+        )
 
-# Additional insights section
-if len(scores_df) > 10:  # Only show if we have enough data
-    st.subheader("🔍 Additional Insights")
-    
-    # Recent trends
-    recent_games = scores_df.tail(5)
-    if len(recent_games) >= 3:
-        recent_avg = recent_games['score'].mean()
-        overall_avg = scores_df['score'].mean()
-        
-        if recent_avg > overall_avg * 1.1:
-            st.success("📈 Scores are trending upward in recent games!")
-        elif recent_avg < overall_avg * 0.9:
-            st.warning("📉 Scores have been lower in recent games.")
-        else:
-            st.info("📊 Recent scores are consistent with overall average.")
-    
-    # Player diversity
-    unique_players_ratio = stats['unique_players'] / stats['total_games']
-    if unique_players_ratio > 0.8:
-        st.info("👥 High player diversity - many different players across games!")
-    elif unique_players_ratio < 0.3:
-        st.info("👥 Core gaming group - same players tend to play together!")
+        # KDE line overlay
+        kde = gaussian_kde(score_data)
+        x_range = np.linspace(min(score_data) - 5, max(score_data) + 5, 1000)
+        kde_values = kde(x_range)
+
+        # Scale KDE to match histogram (approximate scaling)
+        kde_values_scaled = kde_values * len(score_data) * bin_width
+
+        kde_trace = go.Scatter(
+            x=x_range,
+            y=kde_values_scaled,
+            mode="lines",
+            name="Density",
+            line=dict(color="grey", width=2.5),
+        )
+
+        # Combine both
+        fig_dist = go.Figure(data=[hist_trace, kde_trace])
+
+        fig_dist.update_layout(
+            title="Distribution of Scores",
+            xaxis_title="Score",
+            yaxis_title="Count",
+            height=350,
+            title_font_size=16,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            showlegend=False,
+        )
+
+        fig_dist.update_yaxes(dtick=1)
+
+        st.plotly_chart(fig_dist, use_container_width=True)
+
+        # Score range per game chart with wider lines and larger markers
+        if not games_df.empty:
+            games_sorted = games_df.sort_values("game_date").reset_index(drop=True)
+            games_sorted["game_label"] = [
+                f"Game {i+1}" for i in range(len(games_sorted))
+            ]
+
+            fig_range = go.Figure()
+
+            # Add range lines with increased width
+            for i, row in games_sorted.iterrows():
+                fig_range.add_trace(
+                    go.Scatter(
+                        x=[row["game_label"], row["game_label"]],
+                        y=[row["min_score"], row["max_score"]],
+                        mode="lines",
+                        line=dict(color="lightblue", width=8),  # Increased width
+                        showlegend=False,
+                        hoverinfo="skip",
+                    )
+                )
+
+                # Add average score dot with larger size
+                fig_range.add_trace(
+                    go.Scatter(
+                        x=[row["game_label"]],
+                        y=[row["avg_score"]],
+                        mode="markers",
+                        marker=dict(color="red", size=12),  # Increased size
+                        showlegend=False,
+                        hovertemplate=f"Game: {row['game_label']}<br>Avg Score: {row['avg_score']:.1f}<extra></extra>",
+                    )
+                )
+
+            # Add individual player scores with larger markers
+            for game_id in games_sorted["game_id"]:
+                game_scores = scores_df[scores_df["game_id"] == game_id]
+                game_label = games_sorted[games_sorted["game_id"] == game_id][
+                    "game_label"
+                ].iloc[0]
+
+                fig_range.add_trace(
+                    go.Scatter(
+                        x=[game_label] * len(game_scores),
+                        y=game_scores["score"],
+                        mode="markers",
+                        marker=dict(
+                            color="darkblue", size=8, opacity=0.7
+                        ),  # Increased size
+                        showlegend=False,
+                        hovertemplate="<br>".join(
+                            [
+                                f"{row['player_name']}: {row['score']}"
+                                for _, row in game_scores.iterrows()
+                            ]
+                        )
+                        + "<extra></extra>",
+                    )
+                )
+
+            fig_range.update_layout(
+                title="Score Range per Game",
+                xaxis_title="Game",
+                yaxis_title="Score",
+                height=500,
+                title_font_size=16,
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14,
+                xaxis_tickangle=-45,
+            )
+
+            st.plotly_chart(fig_range, use_container_width=True)
+
+        # Score consistency by player with player names on figure
+        player_stats = (
+            scores_df.groupby("player_name")
+            .agg({"score": ["mean", "std", "count"]})
+            .round(2)
+        )
+
+        player_stats.columns = ["avg_score", "score_std", "game_count"]
+        player_stats = player_stats.reset_index()
+        player_stats = player_stats[
+            player_stats["game_count"] >= 2
+        ]  # Only players with 2+ games
+
+        if not player_stats.empty:
+            fig_consistency = px.scatter(
+                player_stats,
+                x="avg_score",
+                y="score_std",
+                size="game_count",
+                text="player_name",  # Add player names to markers
+                title="Score Consistency by Player",
+                labels={
+                    "avg_score": "Average Score",
+                    "score_std": "Score Standard Deviation",
+                },
+                color="game_count",
+                color_continuous_scale="viridis",
+            )
+
+            fig_consistency.update_traces(textposition="top center")
+
+            fig_consistency.update_layout(
+                height=500,
+                title_font_size=16,
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14,
+            )
+
+            st.plotly_chart(fig_consistency, use_container_width=True)
+
+        # Duration vs scores chart
+        duration_games = games_df.dropna(subset=["duration"])
+        if not duration_games.empty:
+            fig_duration_scores = px.scatter(
+                duration_games,
+                x="duration",
+                y="avg_score",
+                size="player_count",
+                title="Duration vs Average Scores",
+                labels={"duration": "Duration (minutes)", "avg_score": "Average Score"},
+                color="total_score",
+                color_continuous_scale="plasma",
+            )
+
+            fig_duration_scores.update_layout(
+                height=400,
+                title_font_size=16,
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14,
+            )
+
+            st.plotly_chart(fig_duration_scores, use_container_width=True)
+
+        # Number of Ages vs scores chart - using num_ages and coloring by max_score
+        ages_games = games_df.dropna(subset=["num_ages"])
+        if not ages_games.empty:
+            fig_ages_scores = px.scatter(
+                ages_games,
+                x="num_ages",
+                y="avg_score",
+                size="player_count",
+                title="Number of Ages vs Average Scores",
+                labels={"num_ages": "Number of Ages", "avg_score": "Average Score"},
+                color="max_score",  # Color by highest score in each game
+                color_continuous_scale="sunset",
+            )
+
+            fig_ages_scores.update_layout(
+                height=400,
+                title_font_size=16,
+                xaxis_title_font_size=14,
+                yaxis_title_font_size=14,
+            )
+
+            st.plotly_chart(fig_ages_scores, use_container_width=True)
+
+
+ut.h_spacer(1)
+st.divider()
+ut.h_spacer(1)
+score_statistics_section()
