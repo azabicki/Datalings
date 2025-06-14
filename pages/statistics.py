@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 from scipy.stats import gaussian_kde
-from pandas import PeriodIndex
+from pandas import PeriodIndex, wide_to_long
 
 
 st.set_page_config(page_title="Statistics", layout=ut.app_layout)
@@ -196,7 +196,7 @@ def format_duration(minutes):
     return f"{hours}:{mins:02d}h"
 
 
-def create_metric_tile(title, value):
+def create_metric_tile(title, value, border=True):
     """Create a styled metric tile with border"""
     if isinstance(value, float):
         if value > 1000:
@@ -204,7 +204,7 @@ def create_metric_tile(title, value):
         else:
             value = f"{value:.1f}"
 
-    st.metric(title, value, border=True)
+    st.metric(title, value, border=border)
 
 
 # Load data ####################################################################
@@ -218,7 +218,7 @@ if scores_df.empty:
 # Overview section #############################################################
 @st.fragment
 def overview_section():
-    st.subheader("Overview")
+    st.subheader(":material/visibility: :material/remove: Overview")
 
     # Two metrics per row
     col1, col2, col3 = st.columns(3)
@@ -241,7 +241,7 @@ overview_section()
 # Time & Day section ###########################################################
 @st.fragment
 def time_day_section():
-    st.subheader("Time & Day")
+    st.subheader(":material/schedule: :material/remove: Time & Day")
 
     # Duration tiles - two per row
     col1, col2, col3, col4 = st.columns(4)
@@ -280,21 +280,47 @@ def time_day_section():
         fig_dow = px.bar(
             x=day_counts.index,
             y=day_counts.values,
-            title="Games Played by Day of Week",
             labels={"x": "", "y": "# Games"},
             color_discrete_sequence=["#84fab0"],
         )
 
         fig_dow.update_layout(
+            title="Games Played by Day of Week",
             height=300,
             title_font_size=16,
             xaxis_title_font_size=14,
             yaxis_title_font_size=14,
             showlegend=False,
             xaxis_tickangle=-45,
+            modebar=dict(
+                remove=[
+                    "pan2d",
+                    "select2d",
+                    "lasso2d",
+                    "zoom2d",
+                    "zoomIn2d",
+                    "zoomOut2d",
+                    "autoScale2d",
+                    "resetScale2d",
+                ]
+            ),
         )
+
         fig_dow.update_yaxes(dtick=1)
 
+        hover_labels = [
+            f"{day}: {count} {'game' if count == 1 else 'games'}"
+            for day, count in zip(day_counts.index, day_counts.values)
+        ]
+        fig_dow.update_traces(
+            hovertext=hover_labels,
+            hovertemplate="%{hovertext}<extra></extra>",
+            hoverlabel=dict(
+                bgcolor="lightyellow",  # <- background color
+                font_size=14,
+                font_color="black",  # optional: text color
+            ),
+        )
         st.plotly_chart(fig_dow, use_container_width=True)
 
         # Monthly games chart - only show month names
@@ -310,34 +336,59 @@ def time_day_section():
         fig_monthly = px.bar(
             x=month_labels,
             y=monthly_counts.values,
-            title="Games Played by Month",
             labels={"x": "", "y": "# Games"},
             color_discrete_sequence=["#a8e6cf"],
         )
 
         fig_monthly.update_layout(
+            title="Games Played by Month",
             height=300,
             title_font_size=16,
             xaxis_title_font_size=14,
             yaxis_title_font_size=14,
             showlegend=False,
             xaxis_tickangle=-45,
+            modebar=dict(
+                remove=[
+                    "pan2d",
+                    "select2d",
+                    "lasso2d",
+                    "zoom2d",
+                    "zoomIn2d",
+                    "zoomOut2d",
+                    "autoScale2d",
+                    "resetScale2d",
+                ]
+            ),
         )
         fig_monthly.update_yaxes(dtick=1)
 
+        hover_labels = [
+            f"{month.to_timestamp().strftime('%B %Y')}: {count} {'game' if count == 1 else 'games'}"
+            for month, count in zip(
+                PeriodIndex(monthly_counts.index), monthly_counts.values
+            )
+        ]
+        fig_monthly.update_traces(
+            hovertext=hover_labels,
+            hovertemplate="%{hovertext}<extra></extra>",
+            hoverlabel=dict(
+                bgcolor="lightyellow",  # <- background color
+                font_size=14,
+                font_color="black",  # optional: text color
+            ),
+        )
         st.plotly_chart(fig_monthly, use_container_width=True)
 
 
-ut.h_spacer(1)
-st.divider()
-ut.h_spacer(1)
+ut.h_spacer(3)
 time_day_section()
 
 
 # Ages section #################################################################
 @st.fragment
 def ages_section():
-    st.subheader("#Age Statistics")
+    st.subheader(":material/stacks: :material/remove: Ages")
 
     # Ages tiles - two per row
     col1, col2, col3 = st.columns(3)
@@ -370,28 +421,47 @@ def ages_section():
         fig_ages.update_yaxes(dtick=1, range=[ages_data["num_ages"].min() - 0.5, 16.5])
 
         fig_ages.update_layout(
-            title_text="",
+            title_text="Ages played per Game",
             height=300,
             title_font_size=16,
             xaxis_title_font_size=14,
             yaxis_title_font_size=14,
             showlegend=False,
             xaxis_tickangle=-45,
+            modebar=dict(
+                remove=[
+                    "pan2d",
+                    "select2d",
+                    "lasso2d",
+                    "zoom2d",
+                    "zoomIn2d",
+                    "zoomOut2d",
+                    "autoScale2d",
+                    "resetScale2d",
+                ]
+            ),
+        )
+
+        fig_ages.update_traces(
+            hovertemplate="played %{y} Ages in %{x}<extra></extra>",
+            hoverlabel=dict(
+                bgcolor="lightyellow",  # <- background color
+                font_size=14,
+                font_color="black",  # optional: text color
+            ),
         )
 
         st.plotly_chart(fig_ages, use_container_width=True)
 
 
-ut.h_spacer(1)
-st.divider()
-ut.h_spacer(1)
+ut.h_spacer(3)
 ages_section()
 
 
 # Score Statistics section #####################################################
 @st.fragment
 def score_statistics_section():
-    st.subheader("Score Statistics")
+    st.subheader(":material/scoreboard: :material/remove: Scores")
 
     # Score tiles - two per row
     col1, col2, col3 = st.columns(3)
@@ -427,13 +497,21 @@ def score_statistics_section():
 
     # Score distribution chart with maximum 3 bins
     if not scores_df.empty:
-        score_data = scores_df["score"].dropna().values
+        score_data = np.asarray(scores_df["score"].dropna())
         bin_width = 2
 
+        # Compute bins and frequencies manually
+        counts, bin_edges = np.histogram(
+            score_data,
+            bins=np.arange(min(score_data), max(score_data) + bin_width, bin_width),
+        )
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
         # Histogram trace with bin width = 3
-        hist_trace = go.Histogram(
-            x=score_data,
-            xbins=dict(size=bin_width),  # Set bin width
+        hist_trace = go.Bar(
+            x=bin_centers,
+            y=counts,
+            width=bin_width,
             marker_color="#ff9999",
             name="Histogram",
         )
@@ -452,6 +530,7 @@ def score_statistics_section():
             mode="lines",
             name="Density",
             line=dict(color="grey", width=2.5),
+            hoverinfo="skip",
         )
 
         # Combine both
@@ -466,86 +545,129 @@ def score_statistics_section():
             xaxis_title_font_size=14,
             yaxis_title_font_size=14,
             showlegend=False,
+            modebar=dict(
+                remove=[
+                    "pan2d",
+                    "select2d",
+                    "lasso2d",
+                    "zoom2d",
+                    "zoomIn2d",
+                    "zoomOut2d",
+                    "autoScale2d",
+                    "resetScale2d",
+                ]
+            ),
         )
 
         fig_dist.update_yaxes(dtick=1)
 
+        hover_texts = [
+            f"{count} times between {int(left)} and {int(right)} points"
+            for count, left, right in zip(counts, bin_edges[:-1], bin_edges[1:])
+        ]
+        fig_dist.update_traces(
+            hovertext=hover_texts,
+            hovertemplate="%{hovertext}<extra></extra>",
+            hoverlabel=dict(
+                bgcolor="lightyellow",  # <- background color
+                font_size=14,
+                font_color="black",  # optional: text color
+            ),
+        )
+
         st.plotly_chart(fig_dist, use_container_width=True)
 
-        # Score range per game chart with wider lines and larger markers
-        if not games_df.empty:
-            games_sorted = games_df.sort_values("game_date").reset_index(drop=True)
-            games_sorted["game_label"] = [
-                f"Game {i+1}" for i in range(len(games_sorted))
-            ]
+    # Score range per game chart with wider lines and larger markers
+    if not games_df.empty:
+        games_sorted = games_df.sort_values("game_date").reset_index(drop=True)
+        games_sorted["game_label"] = [f"Game {i+1}" for i in range(len(games_sorted))]
 
-            fig_range = go.Figure()
+        fig_range = go.Figure()
 
-            # Add range lines with increased width
-            for i, row in games_sorted.iterrows():
-                fig_range.add_trace(
-                    go.Scatter(
-                        x=[row["game_label"], row["game_label"]],
-                        y=[row["min_score"], row["max_score"]],
-                        mode="lines",
-                        line=dict(color="lightblue", width=8),  # Increased width
-                        showlegend=False,
-                        hoverinfo="skip",
-                    )
+        # Add range lines with increased width
+        for i, row in games_sorted.iterrows():
+            fig_range.add_trace(
+                go.Scatter(
+                    x=[row["game_label"], row["game_label"]],
+                    y=[row["min_score"], row["max_score"]],
+                    mode="lines",
+                    line=dict(color="lightblue", width=16),  # Increased width
+                    showlegend=False,
+                    hoverinfo="skip",
                 )
-
-                # Add average score dot with larger size
-                fig_range.add_trace(
-                    go.Scatter(
-                        x=[row["game_label"]],
-                        y=[row["avg_score"]],
-                        mode="markers",
-                        marker=dict(color="red", size=12),  # Increased size
-                        showlegend=False,
-                        hovertemplate=f"Game: {row['game_label']}<br>Avg Score: {row['avg_score']:.1f}<extra></extra>",
-                    )
-                )
-
-            # Add individual player scores with larger markers
-            for game_id in games_sorted["game_id"]:
-                game_scores = scores_df[scores_df["game_id"] == game_id]
-                game_label = games_sorted[games_sorted["game_id"] == game_id][
-                    "game_label"
-                ].iloc[0]
-
-                fig_range.add_trace(
-                    go.Scatter(
-                        x=[game_label] * len(game_scores),
-                        y=game_scores["score"],
-                        mode="markers",
-                        marker=dict(
-                            color="darkblue", size=8, opacity=0.7
-                        ),  # Increased size
-                        showlegend=False,
-                        hovertemplate="<br>".join(
-                            [
-                                f"{row['player_name']}: {row['score']}"
-                                for _, row in game_scores.iterrows()
-                            ]
-                        )
-                        + "<extra></extra>",
-                    )
-                )
-
-            fig_range.update_layout(
-                title="Score Range per Game",
-                xaxis_title="Game",
-                yaxis_title="Score",
-                height=500,
-                title_font_size=16,
-                xaxis_title_font_size=14,
-                yaxis_title_font_size=14,
-                xaxis_tickangle=-45,
             )
 
-            st.plotly_chart(fig_range, use_container_width=True)
+            # Add average score dot with larger size
+            fig_range.add_trace(
+                go.Scatter(
+                    x=[row["game_label"]],
+                    y=[row["avg_score"]],
+                    mode="markers",
+                    marker=dict(symbol=25, color="red", size=16),
+                    # marker=dict(symbol="diamond-wide", color="red", size=16),
+                    showlegend=False,
+                    hovertemplate=f"Avg Score: {row['avg_score']:.1f}<extra></extra>",
+                )
+            )
 
-        # Score consistency by player with player names on figure
+        # Add individual player scores with larger markers
+        for game_id in games_sorted["game_id"]:
+            game_scores = scores_df[scores_df["game_id"] == game_id]
+            game_label = games_sorted[games_sorted["game_id"] == game_id][
+                "game_label"
+            ].iloc[0]
+
+            fig_range.add_trace(
+                go.Scatter(
+                    x=[game_label] * len(game_scores),
+                    y=game_scores["score"],
+                    mode="markers",
+                    marker=dict(symbol=300, color="darkblue", size=8, opacity=0.8),
+                    showlegend=False,
+                    hovertemplate="<br>".join(
+                        [
+                            f"{row['player_name']}: {row['score']}"
+                            for _, row in game_scores.iterrows()
+                        ]
+                    )
+                    + "<extra></extra>",
+                )
+            )
+
+        fig_range.update_layout(
+            title="Score Range per Game",
+            yaxis_title="Score",
+            height=400,
+            title_font_size=16,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            xaxis_tickangle=-45,
+            modebar=dict(
+                remove=[
+                    "pan2d",
+                    "select2d",
+                    "lasso2d",
+                    "zoom2d",
+                    "zoomIn2d",
+                    "zoomOut2d",
+                    "autoScale2d",
+                    "resetScale2d",
+                ]
+            ),
+        )
+
+        fig_range.update_traces(
+            hoverlabel=dict(
+                bgcolor="lightyellow",  # <- background color
+                font_size=14,
+                font_color="black",  # optional: text color
+            )
+        )
+
+        st.plotly_chart(fig_range, use_container_width=True)
+
+    # Score consistency by player with player names on figure
+    if not games_df.empty:
         player_stats = (
             scores_df.groupby("player_name")
             .agg({"score": ["mean", "std", "count"]})
@@ -564,28 +686,58 @@ def score_statistics_section():
                 x="avg_score",
                 y="score_std",
                 size="game_count",
-                text="player_name",  # Add player names to markers
-                title="Score Consistency by Player",
-                labels={
-                    "avg_score": "Average Score",
-                    "score_std": "Score Standard Deviation",
-                },
+                text="player_name",
                 color="game_count",
-                color_continuous_scale="viridis",
+                color_continuous_scale="Purpor",
             )
 
             fig_consistency.update_traces(textposition="top center")
 
             fig_consistency.update_layout(
-                height=500,
+                title="Score Consistency by Player",
+                xaxis_title="Average Score",
+                yaxis_title="Score Standard Deviation",
+                height=450,
                 title_font_size=16,
                 xaxis_title_font_size=14,
                 yaxis_title_font_size=14,
+                coloraxis=dict(
+                    cmin=player_stats["game_count"].min() - 1,
+                    cmax=player_stats["game_count"].max() + 1,
+                ),
+                coloraxis_colorbar=dict(
+                    title=dict(text="Games Played", side="right"), tickmode="linear"
+                ),
+                modebar=dict(
+                    remove=[
+                        "pan2d",
+                        "select2d",
+                        "lasso2d",
+                        "zoom2d",
+                        "zoomIn2d",
+                        "zoomOut2d",
+                        "autoScale2d",
+                        "resetScale2d",
+                    ]
+                ),
+            )
+
+            fig_consistency.update_traces(
+                hovertemplate="<b>%{text}</b> played %{marker.size} games &<br>"
+                + "scored on average:<br>"
+                + "%{x:.1f} ± %{y:.1f} points<extra></extra>",
+                hoverlabel=dict(
+                    bgcolor="lightyellow",  # <- background color
+                    font_size=14,
+                    font_color="black",  # optional: text color
+                ),
+                marker=dict(line=dict(color="white", width=2)),
             )
 
             st.plotly_chart(fig_consistency, use_container_width=True)
 
-        # Duration vs scores chart
+    # Duration vs scores chart
+    if not games_df.empty:
         duration_games = games_df.dropna(subset=["duration"])
         if not duration_games.empty:
             fig_duration_scores = px.scatter(
@@ -593,22 +745,46 @@ def score_statistics_section():
                 x="duration",
                 y="avg_score",
                 size="player_count",
-                title="Duration vs Average Scores",
-                labels={"duration": "Duration (minutes)", "avg_score": "Average Score"},
                 color="total_score",
-                color_continuous_scale="plasma",
+                color_continuous_scale="sunset",
             )
 
             fig_duration_scores.update_layout(
+                title="Duration vs Average Scores",
+                xaxis_title="Duration (minutes)",
+                yaxis_title="Average Score",
                 height=400,
                 title_font_size=16,
                 xaxis_title_font_size=14,
                 yaxis_title_font_size=14,
+                coloraxis_colorbar=dict(title=dict(text="Total Score", side="right")),
+                modebar=dict(
+                    remove=[
+                        "pan2d",
+                        "select2d",
+                        "lasso2d",
+                        "zoom2d",
+                        "zoomIn2d",
+                        "zoomOut2d",
+                        "autoScale2d",
+                        "resetScale2d",
+                    ]
+                ),
+            )
+
+            fig_duration_scores.update_traces(
+                hoverlabel=dict(
+                    bgcolor="lightyellow",  # <- background color
+                    font_size=14,
+                    font_color="black",  # optional: text color
+                ),
+                marker=dict(line=dict(color="white", width=2)),
             )
 
             st.plotly_chart(fig_duration_scores, use_container_width=True)
 
-        # Number of Ages vs scores chart - using num_ages and coloring by max_score
+    # Number of Ages vs scores chart - using num_ages and coloring by max_score
+    if not games_df.empty:
         ages_games = games_df.dropna(subset=["num_ages"])
         if not ages_games.empty:
             fig_ages_scores = px.scatter(
@@ -616,23 +792,44 @@ def score_statistics_section():
                 x="num_ages",
                 y="avg_score",
                 size="player_count",
-                title="Number of Ages vs Average Scores",
-                labels={"num_ages": "Number of Ages", "avg_score": "Average Score"},
-                color="max_score",  # Color by highest score in each game
+                color="max_score",
                 color_continuous_scale="sunset",
             )
 
             fig_ages_scores.update_layout(
+                title="# Ages vs Average Scores",
+                xaxis_title="Ages played",
+                yaxis_title="Average Score",
                 height=400,
                 title_font_size=16,
                 xaxis_title_font_size=14,
                 yaxis_title_font_size=14,
+                coloraxis_colorbar=dict(title=dict(text="Highest Score", side="right")),
+                modebar=dict(
+                    remove=[
+                        "pan2d",
+                        "select2d",
+                        "lasso2d",
+                        "zoom2d",
+                        "zoomIn2d",
+                        "zoomOut2d",
+                        "autoScale2d",
+                        "resetScale2d",
+                    ]
+                ),
+            )
+
+            fig_ages_scores.update_traces(
+                hoverlabel=dict(
+                    bgcolor="lightyellow",  # <- background color
+                    font_size=14,
+                    font_color="black",  # optional: text color
+                ),
+                marker=dict(line=dict(color="white", width=2)),
             )
 
             st.plotly_chart(fig_ages_scores, use_container_width=True)
 
 
-ut.h_spacer(1)
-st.divider()
-ut.h_spacer(1)
+ut.h_spacer(3)
 score_statistics_section()
