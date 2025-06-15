@@ -1089,3 +1089,37 @@ def get_single_game_details(game_id: int) -> dict:
         logger.error(f"Error fetching game {game_id} details: {e}")
         st.error(f"Error fetching game details: {e}")
         return {"scores": [], "settings": []}
+
+
+def get_all_scores() -> pd.DataFrame:
+    """Return all game scores with player names."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        query = """
+            SELECT s.game_id, s.player_id, p.name AS player_name, s.score
+            FROM datalings_game_scores s
+            JOIN datalings_players p ON s.player_id = p.id
+        """
+        return conn.query(query, ttl=0)
+    except Exception as e:
+        logger.error(f"Error fetching all game scores: {e}")
+        return pd.DataFrame()
+
+
+def get_all_game_setting_values() -> pd.DataFrame:
+    """Return all game setting values for all games."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        query = """
+            SELECT sv.game_id, sv.setting_id, gs.name AS setting_name,
+                   gs.type AS setting_type, sv.value_text, sv.value_number,
+                   sv.value_boolean, sv.value_time_minutes
+            FROM datalings_game_setting_values sv
+            JOIN datalings_game_settings gs ON sv.setting_id = gs.id
+            ORDER BY sv.game_id, gs.position
+        """
+        return conn.query(query, ttl=0)
+    except Exception as e:
+        logger.error(f"Error fetching all game setting values: {e}")
+        return pd.DataFrame()
+

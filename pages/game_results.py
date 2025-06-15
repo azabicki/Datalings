@@ -70,6 +70,8 @@ def init_session_state():
         st.session_state.last_cache_clear = time.time()
     if "refresh_record_form" not in st.session_state:
         st.session_state.refresh_record_form = False
+    if "refresh_statistics" not in st.session_state:
+        st.session_state.refresh_statistics = False
 
 
 def clear_performance_caches():
@@ -127,6 +129,7 @@ def delete_game_dialog(game_data: Dict, game_number: int):
         ):
             if db.delete_game_from_database(game_id):
                 clear_performance_caches()
+                st.session_state.refresh_statistics = True
                 st.success("Game deleted successfully!")
                 st.rerun()
             else:
@@ -306,6 +309,7 @@ def edit_game_dialog(game_data: Dict, game_number: int):
                 edit_notes or "",
             ):
                 clear_performance_caches()
+                st.session_state.refresh_statistics = True
                 st.success("Game updated successfully!")
                 st.rerun()
             else:
@@ -578,6 +582,7 @@ def display_new_game_form():
                     del st.session_state[submission_key]
                     st.session_state.game_form_counter += 1
                     clear_performance_caches()
+                    st.session_state.refresh_statistics = True
                     st.success("Game saved successfully!")
                     st.rerun()
                 else:
