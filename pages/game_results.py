@@ -72,6 +72,10 @@ def init_session_state():
         st.session_state.refresh_record_form = False
     if "refresh_statistics" not in st.session_state:
         st.session_state.refresh_statistics = False
+    if "action_message" not in st.session_state:
+        st.session_state.action_message = ""
+    if "results_tab" not in st.session_state:
+        st.session_state.results_tab = "Game History"
 
 
 def clear_performance_caches():
@@ -129,8 +133,10 @@ def delete_game_dialog(game_data: Dict, game_number: int):
         ):
             if db.delete_game_from_database(game_id):
                 clear_performance_caches()
-                st.session_state.refresh_statistics = True
-                st.success("Game deleted successfully!")
+                st.session_state.action_message = (
+                    f"Game #{game_number} deleted successfully!"
+                )
+                st.session_state.results_tab = "Game History"
                 st.rerun()
             else:
                 st.error("Failed to delete game. Please try again.")
@@ -309,8 +315,10 @@ def edit_game_dialog(game_data: Dict, game_number: int):
                 edit_notes or "",
             ):
                 clear_performance_caches()
-                st.session_state.refresh_statistics = True
-                st.success("Game updated successfully!")
+                st.session_state.action_message = (
+                    f"Game #{game_number} updated successfully!"
+                )
+                st.session_state.results_tab = "Game History"
                 st.rerun()
             else:
                 st.error("Failed to update game. Please try again.")
@@ -582,8 +590,11 @@ def display_new_game_form():
                     del st.session_state[submission_key]
                     st.session_state.game_form_counter += 1
                     clear_performance_caches()
-                    st.session_state.refresh_statistics = True
-                    st.success("Game saved successfully!")
+                    new_count = db.get_games_count()
+                    st.session_state.action_message = (
+                        f"Game #{new_count} recorded successfully!"
+                    )
+                    st.session_state.results_tab = "Game History"
                     st.rerun()
                 else:
                     del st.session_state[submission_key]
@@ -596,7 +607,8 @@ init_session_state()
 # Main app layout
 st.header("Game Results")
 tab1, tab2 = st.tabs(
-    [s.center(16, "\u2001") for s in ["Game History", "Record New Game"]]
+    [s.center(16, "\u2001") for s in ["Game History", "Record New Game"]],
+    key="results_tab",
 )
 
 # Game history tab with advanced optimizations
@@ -604,6 +616,10 @@ with tab1:
     col1, col2 = st.columns([2, 1])
     with col1:
         st.markdown("#### Game History")
+    # Success message just below the header
+    if st.session_state.get("action_message"):
+        st.success(st.session_state.action_message)
+        st.session_state.action_message = ""
 
     # Performance controls
     with col2:
