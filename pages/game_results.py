@@ -49,6 +49,13 @@ def get_cached_players_and_settings():
         return pd.DataFrame(), pd.DataFrame()
 
 
+def refresh_reference_caches_if_needed():
+    """Clear cached players/settings if other pages requested it."""
+    if st.session_state.get("refresh_record_form"):
+        get_cached_players_and_settings.clear()
+        st.session_state.refresh_record_form = False
+
+
 # Advanced session state management
 def init_session_state():
     """Initialize session state with performance optimizations."""
@@ -61,6 +68,8 @@ def init_session_state():
         st.session_state.game_form_counter = 0
     if "last_cache_clear" not in st.session_state:
         st.session_state.last_cache_clear = time.time()
+    if "refresh_record_form" not in st.session_state:
+        st.session_state.refresh_record_form = False
 
 
 def clear_performance_caches():
@@ -423,6 +432,8 @@ def display_single_game(game_data: Dict, game_number: int):
 def display_new_game_form():
     """Optimized new game form with cached reference data."""
     st.markdown("#### Record New Game")
+
+    refresh_reference_caches_if_needed()
 
     # Use cached players and settings
     active_players, active_settings = get_cached_players_and_settings()
