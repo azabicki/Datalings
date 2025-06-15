@@ -78,7 +78,7 @@ def create_sidebar() -> None:
     if st.session_state["authentication_status"]:
         authenticator = st.session_state["auth"]
         authenticator.logout(
-            button_name=f"logout {st.session_state.get("username")}",
+            button_name=f"logout {st.session_state.get('username')}",
             location="sidebar",
             use_container_width=True,
         )
@@ -109,7 +109,7 @@ def format_date_german(date_obj):
         # Use %d and %m without leading zeros by converting to int first
         day = int(date_obj.strftime("%d"))
         month = int(date_obj.strftime("%m"))
-        year = date_obj.strftime("%y")
+        year = date_obj.strftime("%Y")
         return f"{day}.{month}.{year}"
     except Exception as e:
         logger.error(f"Error formatting German date: {e}")
