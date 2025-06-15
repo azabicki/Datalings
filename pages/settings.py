@@ -6,6 +6,211 @@ import functions.database as db
 
 st.set_page_config(page_title="Settings", layout=ut.app_layout)
 
+
+@st.cache_data(ttl=60)
+def get_cached_players() -> pd.DataFrame:
+    """Cache players for better performance."""
+    return db.get_all_players()
+
+
+@st.cache_data(ttl=60)
+def get_cached_settings() -> pd.DataFrame:
+    """Cache game settings for better performance."""
+    return db.get_all_game_settings()
+
+
+@st.cache_data(ttl=60)
+def get_cached_list_items(setting_id: int) -> pd.DataFrame:
+    """Cache list items for a given setting."""
+    return db.get_game_setting_list_items(setting_id)
+
+
+@st.dialog("Edit Player")
+def edit_player_dialog(player_id: int, current_name: str):
+    """Dialog to edit a player's name."""
+    with st.form(f"edit_form_{player_id}", border=False):
+        new_name = st.text_input(
+            "New name:",
+            value=current_name,
+            key=f"edit_name_{player_id}",
+        )
+        col_save, col_cancel = st.columns(2)
+        with col_save:
+            save_button = st.form_submit_button(
+                "Save",
+                type="primary",
+                icon=":material/save:",
+                use_container_width=True,
+            )
+        with col_cancel:
+            cancel_button = st.form_submit_button(
+                "Cancel",
+                icon=":material/cancel:",
+                use_container_width=True,
+            )
+
+        if save_button and new_name.strip():
+            if db.update_player_name_in_database(player_id, new_name.strip()):
+                get_cached_players.clear()
+                st.rerun()
+        elif cancel_button:
+            st.rerun()
+
+
+@st.dialog("Edit Setting")
+def edit_setting_dialog(
+    setting_id: int, current_name: str, current_type: str, current_note: str
+):
+    """Dialog to edit a game setting."""
+    with st.form(f"edit_setting_form_{setting_id}", border=False):
+        col_name, col_type = st.columns(2)
+
+        with col_name:
+            new_name = st.text_input(
+                "New Name:",
+                value=current_name,
+                key=f"edit_setting_name_{setting_id}",
+            )
+
+        with col_type:
+            new_type = st.selectbox(
+                "New Type:",
+                options=["number", "boolean", "list", "time"],
+                index=["number", "boolean", "list", "time"].index(
+                    current_type
+                ),
+                format_func=lambda x: {
+                    "number": "🔢 Number",
+                    "boolean": "☑️ Boolean",
+                    "list": "📋 List",
+                    "time": "⏱️ Time",
+                }[x],
+                key=f"edit_setting_type_{setting_id}",
+            )
+
+        new_note = st.text_area(
+            "New Note (optional)",
+            value=current_note,
+            height=80,
+            key=f"edit_setting_note_{setting_id}",
+        )
+
+        col_save, col_cancel = st.columns(2)
+        with col_save:
+            save_button = st.form_submit_button(
+                "Save",
+                use_container_width=True,
+                type="primary",
+                icon=":material/save:",
+            )
+        with col_cancel:
+            cancel_button = st.form_submit_button(
+                "Cancel",
+                use_container_width=True,
+                icon=":material/cancel:",
+            )
+
+        if save_button and new_name.strip():
+            if db.game_setting_exists_except_id(new_name.strip(), setting_id):
+                st.error(
+                    f"Game setting name '{new_name.strip()}' already exists!"
+                )
+            else:
+                if db.update_game_setting_in_database(
+                    setting_id, new_name.strip(), new_type, new_note
+                ):
+                    get_cached_settings.clear()
+                    get_cached_list_items.clear()
+                    st.rerun()
+        elif save_button and not new_name.strip():
+            st.error("Please enter a valid setting name.")
+        elif cancel_button:
+            st.rerun()
+
+    # Manage list items for list type
+    if current_type == "list":
+        st.markdown("##### _Manage List Items_")
+        list_items_df = get_cached_list_items(setting_id)
+        if len(list_items_df) > 0:
+            for idx, (_, item_row) in enumerate(list_items_df.iterrows(), 1):
+                col_item, col_edit = st.columns([3, 1])
+                item_id = int(item_row["id"])
+                item_value = str(item_row["value"])
+
+                with col_item:
+                    edit_key = f"edit_item_{setting_id}_{item_id}"
+                    if edit_key not in st.session_state:
+                        st.session_state[edit_key] = item_value
+
+                    new_value = st.text_input(
+                        f"Item {idx}:",
+                        value=st.session_state[edit_key],
+                        key=f"input_{edit_key}",
+                        label_visibility="collapsed",
+                    )
+
+                with col_edit:
+                    if st.button(
+                        "Rename",
+                        key=f"rename_item_{setting_id}_{item_id}",
+                        type="secondary",
+                        icon=":material/edit_note:",
+                        use_container_width=True,
+                        help="Update item name",
+                    ):
+                        if (
+                            new_value
+                            and new_value.strip()
+                            and new_value.strip() != item_value
+                        ):
+                            if db.update_list_item_in_setting(
+                                item_id, new_value.strip()
+                            ):
+                                get_cached_list_items.clear()
+                                st.session_state[edit_key] = new_value.strip()
+                                st.rerun()
+                        elif not new_value or not new_value.strip():
+                            st.error("Please enter a valid item name.")
+                        else:
+                            st.info("No changes made.")
+        else:
+            st.info(
+                f"💡 Activate  _**{current_name}**_ once you've added all desired list items."
+            )
+
+        col_input, col_add = st.columns([3, 1], vertical_alignment="bottom")
+
+        with col_input:
+            input_counter_key = f"input_counter_{setting_id}"
+            if input_counter_key not in st.session_state:
+                st.session_state[input_counter_key] = 0
+
+            new_item = st.text_input(
+                "Add new item:",
+                placeholder="Enter new list item...",
+                key=f"input_new_item_{setting_id}_{st.session_state[input_counter_key]}",
+            )
+
+        with col_add:
+            if st.button(
+                "Add",
+                key=f"add_item_{setting_id}",
+                type="primary",
+                icon=":material/add_circle:",
+                use_container_width=True,
+            ):
+                if new_item and new_item.strip():
+                    next_order = len(list_items_df)
+                    if db.add_list_item_to_setting(
+                        setting_id, new_item.strip(), next_order
+                    ):
+                        get_cached_list_items.clear()
+                        st.session_state[input_counter_key] += 1
+                        st.rerun()
+                else:
+                    st.error("Please enter a valid item.")
+
+
 # auth
 auth.login()
 
@@ -23,7 +228,7 @@ with st.container(border=True):
     )
 
     # Get all players
-    players_df = db.get_all_players()
+    players_df = get_cached_players()
 
     # overview of players
     with tab1:
@@ -36,14 +241,20 @@ with st.container(border=True):
             with col1:
                 st.metric("Total Players", len(players_df), border=True)
             with col2:
-                st.metric("Active Players", len(players_df_active), border=True)
+                st.metric(
+                    "Active Players", len(players_df_active), border=True
+                )
             with col3:
-                st.metric("Inactive Players", len(players_df_inactive), border=True)
+                st.metric(
+                    "Inactive Players", len(players_df_inactive), border=True
+                )
 
             # display ACTIVE players
             if len(players_df_active) > 0:
                 for row_start in range(0, len(players_df_active), 2):
-                    player_cols = st.columns([1, 2, 3], vertical_alignment="center")
+                    player_cols = st.columns(
+                        [1, 2, 3], vertical_alignment="center"
+                    )
                     with player_cols[0]:
                         st.write("**active**:" if row_start == 0 else "")
                     for col_idx in range(2):
@@ -56,7 +267,9 @@ with st.container(border=True):
             # display INACTIVE players
             if len(players_df_inactive) > 0:
                 for row_start in range(0, len(players_df_inactive), 2):
-                    player_cols = st.columns([1, 2, 3], vertical_alignment="center")
+                    player_cols = st.columns(
+                        [1, 2, 3], vertical_alignment="center"
+                    )
                     with player_cols[0]:
                         st.write("**inactive**:" if row_start == 0 else "")
                     for col_idx in range(2):
@@ -78,7 +291,9 @@ with st.container(border=True):
         if not players_df.empty:
             # Display players in a more user-friendly way
             for _, player in players_df.iterrows():
-                col1, col2, col3 = st.columns([3, 2, 2], vertical_alignment="center")
+                col1, col2, col3 = st.columns(
+                    [3, 2, 2], vertical_alignment="center"
+                )
 
                 player_id = int(player["id"])
                 player_name = str(player["name"])
@@ -93,7 +308,6 @@ with st.container(border=True):
                         st.markdown(f"##### {status_emoji} ~~{player_name}~~")
 
                 with col2:
-                    # Edit button - toggle edit mode
                     if st.button(
                         "Edit",
                         key=f"edit_{player_id}",
@@ -101,11 +315,7 @@ with st.container(border=True):
                         icon=":material/edit:",
                         use_container_width=True,
                     ):
-                        # Toggle edit mode
-                        current_editing = st.session_state.get(
-                            f"editing_{player_id}", False
-                        )
-                        st.session_state[f"editing_{player_id}"] = not current_editing
+                        edit_player_dialog(player_id, player_name)
 
                 with col3:
                     # Toggle active/inactive
@@ -125,43 +335,11 @@ with st.container(border=True):
                         icon=button_icon,
                         use_container_width=True,
                     ):
-                        if db.update_player_status_in_database(player_id, new_status):
-                            action = "activated" if new_status else "deactivated"
+                        if db.update_player_status_in_database(
+                            player_id, new_status
+                        ):
+                            get_cached_players.clear()
                             st.rerun()
-
-                # Show edit form if in edit mode
-                if st.session_state.get(f"editing_{player_id}", False):
-                    with st.form(f"edit_form_{player_id}", border=False):
-                        new_name = st.text_input(
-                            "New name:",
-                            value=player_name,
-                            key=f"edit_name_{player_id}",
-                        )
-                        col_save, col_cancel = st.columns(2)
-                        with col_save:
-                            save_button = st.form_submit_button(
-                                "Save",
-                                type="primary",
-                                icon=":material/save:",
-                                use_container_width=True,
-                            )
-                        with col_cancel:
-                            cancel_button = st.form_submit_button(
-                                "Cancel",
-                                icon=":material/cancel:",
-                                use_container_width=True,
-                            )
-
-                        if save_button and new_name.strip():
-                            if db.update_player_name_in_database(
-                                player_id, new_name.strip()
-                            ):
-                                st.session_state[f"editing_{player_id}"] = False
-                                st.rerun()
-                        elif cancel_button:
-                            st.session_state[f"editing_{player_id}"] = False
-                            st.rerun()
-                        st.divider()
 
         else:
             st.info(
@@ -176,7 +354,9 @@ with st.container(border=True):
         if "form_counter" not in st.session_state:
             st.session_state.form_counter = 0
 
-        with st.form(f"add_player_form_{st.session_state.form_counter}", border=False):
+        with st.form(
+            f"add_player_form_{st.session_state.form_counter}", border=False
+        ):
             new_player_name = st.text_input(
                 "Player Name", placeholder="Enter player name..."
             )
@@ -190,6 +370,7 @@ with st.container(border=True):
             if submit_button:
                 if new_player_name.strip():
                     if db.add_player_to_database(new_player_name.strip()):
+                        get_cached_players.clear()
                         # Increment form counter to reset the form
                         st.session_state.form_counter += 1
                         st.rerun()
@@ -207,7 +388,7 @@ with st.container(border=True):
     )
 
     # Get all game settings
-    settings_df = db.get_all_game_settings()
+    settings_df = get_cached_settings()
 
     # overview of game settings
     with tab1:
@@ -249,7 +430,9 @@ with st.container(border=True):
                 if is_active:
                     st.markdown(f"#### {status_emoji} {emoji} {setting_name}")
                 else:
-                    st.markdown(f"#### {status_emoji} {emoji} ~~{setting_name}~~")
+                    st.markdown(
+                        f"#### {status_emoji} {emoji} ~~{setting_name}~~"
+                    )
 
                 # If a note is set
                 if setting_note and setting_note != "None":
@@ -260,7 +443,7 @@ with st.container(border=True):
 
                 # If it's a list type, show the list items
                 if setting_type == "list":
-                    list_items_df = db.get_game_setting_list_items(setting_id)
+                    list_items_df = get_cached_list_items(setting_id)
                     if len(list_items_df) > 0:
                         items = list_items_df["value"].tolist()
                         st.markdown(f"**Items:** {', '.join(items)}")
@@ -309,9 +492,13 @@ with st.container(border=True):
 
                     # Use strikethrough for inactive settings
                     if is_active:
-                        st.markdown(f"##### {status_emoji} {emoji} {setting_name}")
+                        st.markdown(
+                            f"##### {status_emoji} {emoji} {setting_name}"
+                        )
                     else:
-                        st.markdown(f"##### {status_emoji} {emoji} ~~{setting_name}~~")
+                        st.markdown(
+                            f"##### {status_emoji} {emoji} ~~{setting_name}~~"
+                        )
 
                 with col2:
                     # Initialize counter for this setting if not exists
@@ -320,9 +507,7 @@ with st.container(border=True):
                         st.session_state[counter_key] = 0
 
                     # Use counter in key to force reset after each action
-                    segment_key = (
-                        f"edit_setting_up_{setting_id}_{st.session_state[counter_key]}"
-                    )
+                    segment_key = f"edit_setting_up_{setting_id}_{st.session_state[counter_key]}"
 
                     # Determine available options based on position
                     is_first = index == 0
@@ -335,7 +520,9 @@ with st.container(border=True):
                         updown[1] = ":material/arrow_upward:"
 
                     position_action = None
-                    if updown:  # Only show segmented control if there are options
+                    if (
+                        updown
+                    ):  # Only show segmented control if there are options
                         position_action = st.segmented_control(
                             "_",
                             options=updown.keys(),
@@ -350,10 +537,12 @@ with st.container(border=True):
                     if position_action is not None:
                         if position_action == 1:  # Move up
                             if db.move_setting_up(setting_id):
+                                get_cached_settings.clear()
                                 st.session_state[counter_key] += 1
                                 st.rerun()
                         elif position_action == 0:  # Move down
                             if db.move_setting_down(setting_id):
+                                get_cached_settings.clear()
                                 st.session_state[counter_key] += 1
                                 st.rerun()
 
@@ -365,12 +554,11 @@ with st.container(border=True):
                         icon=":material/edit:",
                         use_container_width=True,
                     ):
-                        # Toggle edit mode
-                        current_editing = st.session_state.get(
-                            f"editing_setting_{setting_id}", False
-                        )
-                        st.session_state[f"editing_setting_{setting_id}"] = (
-                            not current_editing
+                        edit_setting_dialog(
+                            setting_id,
+                            setting_name,
+                            setting_type,
+                            setting_note or "",
                         )
 
                 with col4:
@@ -386,7 +574,7 @@ with st.container(border=True):
                     # Check if it's a list type with no items
                     button_disabled = False
                     if setting_type == "list" and not is_active:
-                        list_items_df = db.get_game_setting_list_items(setting_id)
+                        list_items_df = get_cached_list_items(setting_id)
                         if len(list_items_df) == 0:
                             button_disabled = True
 
@@ -406,181 +594,8 @@ with st.container(border=True):
                         if db.update_game_setting_status_in_database(
                             setting_id, new_status
                         ):
+                            get_cached_settings.clear()
                             st.rerun()
-
-                # Show edit form if in edit mode
-                if st.session_state.get(f"editing_setting_{setting_id}", False):
-                    with st.form(f"edit_setting_form_{setting_id}", border=False):
-                        col_name, col_type = st.columns(2)
-
-                        with col_name:
-                            new_name = st.text_input(
-                                "New Name:",
-                                value=setting_name,
-                                key=f"edit_setting_name_{setting_id}",
-                            )
-
-                        with col_type:
-                            new_type = st.selectbox(
-                                "New Type:",
-                                options=["number", "boolean", "list", "time"],
-                                index=[
-                                    "number",
-                                    "boolean",
-                                    "list",
-                                    "time",
-                                ].index(setting_type),
-                                format_func=lambda x: {
-                                    "number": "🔢 Number",
-                                    "boolean": "☑️ Boolean",
-                                    "list": "📋 List",
-                                    "time": "⏱️ Time",
-                                }[x],
-                                key=f"edit_setting_type_{setting_id}",
-                            )
-
-                        new_note = st.text_area(
-                            "New Note (optional)",
-                            value=setting_note,
-                            height=80,
-                            key=f"edit_setting_note_{setting_id}",
-                        )
-
-                        col_save, col_cancel = st.columns(2)
-                        with col_save:
-                            save_button = st.form_submit_button(
-                                "Save",
-                                use_container_width=True,
-                                type="primary",
-                                icon=":material/save:",
-                            )
-                        with col_cancel:
-                            cancel_button = st.form_submit_button(
-                                "Cancel",
-                                use_container_width=True,
-                                icon=":material/cancel:",
-                            )
-
-                        if save_button and new_name.strip():
-                            # Check if name already exists (excluding current setting)
-                            if db.game_setting_exists_except_id(
-                                new_name.strip(), setting_id
-                            ):
-                                st.error(
-                                    f"Game setting name '{new_name.strip()}' already exists!"
-                                )
-                            else:
-                                if db.update_game_setting_in_database(
-                                    setting_id, new_name.strip(), new_type, new_note
-                                ):
-                                    st.session_state[
-                                        f"editing_setting_{setting_id}"
-                                    ] = False
-                                    st.rerun()
-                        elif save_button and not new_name.strip():
-                            st.error("Please enter a valid setting name.")
-                        elif cancel_button:
-                            st.session_state[f"editing_setting_{setting_id}"] = False
-                            st.rerun()
-
-                    # List item management outside the form (for list-type settings)
-                    if setting_type == "list":
-                        st.markdown("##### _Manage List Items_")
-
-                        # Get current list items
-                        list_items_df = db.get_game_setting_list_items(setting_id)
-
-                        # Show current items for editing
-                        if len(list_items_df) > 0:
-                            for idx, (_, item_row) in enumerate(
-                                list_items_df.iterrows(), 1
-                            ):
-                                col_item, col_edit = st.columns([3, 1])
-                                item_id = int(item_row["id"])
-                                item_value = str(item_row["value"])
-
-                                with col_item:
-                                    # Use text input for editing
-                                    edit_key = f"edit_item_{setting_id}_{item_id}"
-                                    if edit_key not in st.session_state:
-                                        st.session_state[edit_key] = item_value
-
-                                    new_value = st.text_input(
-                                        f"Item {idx}:",
-                                        value=st.session_state[edit_key],
-                                        key=f"input_{edit_key}",
-                                        label_visibility="collapsed",
-                                    )
-
-                                with col_edit:
-                                    if st.button(
-                                        "Rename",
-                                        key=f"rename_item_{setting_id}_{item_id}",
-                                        type="secondary",
-                                        icon=":material/edit_note:",
-                                        use_container_width=True,
-                                        help="Update item name",
-                                    ):
-                                        if (
-                                            new_value
-                                            and new_value.strip()
-                                            and new_value.strip() != item_value
-                                        ):
-                                            if db.update_list_item_in_setting(
-                                                item_id, new_value.strip()
-                                            ):
-                                                st.session_state[edit_key] = (
-                                                    new_value.strip()
-                                                )
-                                                st.rerun()
-                                            elif not new_value or not new_value.strip():
-                                                st.error(
-                                                    "Please enter a valid item name."
-                                                )
-                                        else:
-                                            st.info("No changes made.")
-                        else:
-                            st.info(
-                                f"💡 Activate  _**{setting_name}**_ once you've added all desired list items."
-                            )
-
-                        # Add new item
-                        col_input, col_add = st.columns(
-                            [3, 1], vertical_alignment="bottom"
-                        )
-
-                        with col_input:
-                            # Use counter for input field reset
-                            input_counter_key = f"input_counter_{setting_id}"
-                            if input_counter_key not in st.session_state:
-                                st.session_state[input_counter_key] = 0
-
-                            new_item = st.text_input(
-                                "Add new item:",
-                                placeholder="Enter new list item...",
-                                key=f"input_new_item_{setting_id}_{st.session_state[input_counter_key]}",
-                            )
-
-                        with col_add:
-                            if st.button(
-                                "Add",
-                                key=f"add_item_{setting_id}",
-                                type="primary",
-                                icon=":material/add_circle:",
-                                use_container_width=True,
-                            ):
-                                if new_item and new_item.strip():
-                                    # Get the next order index
-                                    next_order = len(list_items_df)
-                                    if db.add_list_item_to_setting(
-                                        setting_id, new_item.strip(), next_order
-                                    ):
-                                        # Clear input field by incrementing counter (creates new widget)
-                                        st.session_state[input_counter_key] += 1
-                                        st.rerun()
-                                else:
-                                    st.error("Please enter a valid item.")
-                    st.divider()
 
         else:
             st.info(
@@ -596,7 +611,8 @@ with st.container(border=True):
             st.session_state.settings_form_counter = 0
 
         with st.form(
-            f"add_setting_form_{st.session_state.settings_form_counter}", border=False
+            f"add_setting_form_{st.session_state.settings_form_counter}",
+            border=False,
         ):
             col1, col2 = st.columns(2)
 
@@ -640,6 +656,7 @@ with st.container(border=True):
                         setting_note.strip() if setting_note else "",
                         setting_type,
                     ):
+                        get_cached_settings.clear()
                         # Increment form counter to reset the form
                         st.session_state.settings_form_counter += 1
                         st.rerun()
