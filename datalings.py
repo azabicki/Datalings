@@ -649,7 +649,8 @@ else:
             player_stats.items(), key=lambda x: x[1]["podium_rate"], reverse=True
         ):
             st.write(
-                f"**{name}**: {stats['podium_rate']:.1f}% ({stats['podium_finishes']}/{stats['games_played']} games)"
+                f"**{name}**: {stats['podium_rate']:.1f}% "
+                + "({stats['podium_finishes']}/{stats['games_played']} games)"
             )
 
     st.markdown("---")
@@ -657,7 +658,8 @@ else:
     # 3. RANKING POINTS SYSTEM #################################################
     st.subheader("🎯 Ranking Points System")
     st.markdown(
-        "*Based on finishing position: 1st=7pts, 2nd=4pts, 3rd=2pts, 4th+=1pt (tied players get same rank and points)*"
+        "*Based on finishing position: 1st=7pts, 2nd=4pts, 3rd=2pts, 4th+=1pt "
+        + "(tied players get same rank and points)*"
     )
 
     # Create ranking points data

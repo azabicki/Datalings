@@ -51,7 +51,7 @@ def edit_player_dialog(player_id: int, current_name: str):
 
         if save_button and new_name.strip():
             if db.update_player_name_in_database(player_id, new_name.strip()):
-                get_cached_players.clear()
+                get_cached_players.clear()  # type: ignore
                 st.session_state["refresh_record_form"] = True
                 st.rerun()
         elif cancel_button:
@@ -121,8 +121,8 @@ def edit_setting_dialog(
                 if db.update_game_setting_in_database(
                     setting_id, new_name.strip(), new_type, new_note
                 ):
-                    get_cached_settings.clear()
-                    get_cached_list_items.clear()
+                    get_cached_settings.clear()  # type: ignore
+                    get_cached_list_items.clear()  # type: ignore
                     st.session_state["refresh_record_form"] = True
                     st.rerun()
         elif save_button and not new_name.strip():
@@ -169,7 +169,7 @@ def edit_setting_dialog(
                             if db.update_list_item_in_setting(
                                 item_id, new_value.strip()
                             ):
-                                get_cached_list_items.clear()
+                                get_cached_list_items.clear()  # type: ignore
                                 st.session_state[edit_key] = new_value.strip()
                                 st.rerun()
                         elif not new_value or not new_value.strip():
@@ -207,7 +207,7 @@ def edit_setting_dialog(
                     if db.add_list_item_to_setting(
                         setting_id, new_item.strip(), next_order
                     ):
-                        get_cached_list_items.clear()
+                        get_cached_list_items.clear()  # type: ignore
                         st.session_state[input_counter_key] += 1
                         st.rerun()
                 else:
@@ -304,7 +304,6 @@ with st.container(border=True):
 
                 with col1:
                     status_emoji = "✅" if is_active else "❌"
-                    # Use markdown with larger font size for player name and strikethrough for inactive
                     if is_active:
                         st.markdown(f"##### {status_emoji} {player_name}")
                     else:
@@ -341,7 +340,7 @@ with st.container(border=True):
                         if db.update_player_status_in_database(
                             player_id, new_status
                         ):
-                            get_cached_players.clear()
+                            get_cached_players.clear()  # type: ignore
                             st.session_state["refresh_record_form"] = True
                             st.rerun()
 
@@ -374,7 +373,7 @@ with st.container(border=True):
             if submit_button:
                 if new_player_name.strip():
                     if db.add_player_to_database(new_player_name.strip()):
-                        get_cached_players.clear()
+                        get_cached_players.clear()  # type: ignore
                         st.session_state["refresh_record_form"] = True
                         # Increment form counter to reset the form
                         st.session_state.form_counter += 1
@@ -543,13 +542,13 @@ with st.container(border=True):
                     if position_action is not None:
                         if position_action == 1:  # Move up
                             if db.move_setting_up(setting_id):
-                                get_cached_settings.clear()
+                                get_cached_settings.clear()  # type: ignore
                                 st.session_state["refresh_record_form"] = True
                                 st.session_state[counter_key] += 1
                                 st.rerun()
                         elif position_action == 0:  # Move down
                             if db.move_setting_down(setting_id):
-                                get_cached_settings.clear()
+                                get_cached_settings.clear()  # type: ignore
                                 st.session_state["refresh_record_form"] = True
                                 st.session_state[counter_key] += 1
                                 st.rerun()
@@ -603,7 +602,7 @@ with st.container(border=True):
                         if db.update_game_setting_status_in_database(
                             setting_id, new_status
                         ):
-                            get_cached_settings.clear()
+                            get_cached_settings.clear()  # type: ignore
                             st.session_state["refresh_record_form"] = True
                             st.rerun()
 
@@ -666,7 +665,7 @@ with st.container(border=True):
                         setting_note.strip() if setting_note else "",
                         setting_type,
                     ):
-                        get_cached_settings.clear()
+                        get_cached_settings.clear()  # type: ignore
                         st.session_state["refresh_record_form"] = True
                         # Increment form counter to reset the form
                         st.session_state.settings_form_counter += 1
@@ -676,5 +675,7 @@ with st.container(border=True):
 
             # info about list-type settings
             st.write(
-                "> :small[**NOTE:** _List-type settings_ are created as **inactive** by default. After creation, go to the Manage tab to add list items, then activate the setting.]"
+                "> :small[**NOTE:** _List-type settings_ are created as **inactive** by "
+                + "default. After creation, go to the Manage tab to add list items, "
+                + "then activate the setting.]"
             )

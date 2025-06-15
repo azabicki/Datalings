@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 from scipy.stats import gaussian_kde
-from pandas import PeriodIndex, wide_to_long
+from pandas import PeriodIndex
 
 
 st.set_page_config(page_title="Statistics", layout=ut.app_layout)
@@ -218,7 +218,7 @@ def create_metric_tile(title, value, border=True):
 
 # Load data ####################################################################
 if st.session_state.get("refresh_statistics"):
-    load_all_game_data.clear()
+    load_all_game_data.clear()  # type: ignore
     st.session_state.refresh_statistics = False
 scores_df, games_df, summary_stats = load_all_game_data()
 

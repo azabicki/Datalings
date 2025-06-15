@@ -52,7 +52,7 @@ def get_cached_players_and_settings():
 def refresh_reference_caches_if_needed():
     """Clear cached players/settings if other pages requested it."""
     if st.session_state.get("refresh_record_form"):
-        get_cached_players_and_settings.clear()
+        get_cached_players_and_settings.clear()  # type: ignore
         st.session_state.refresh_record_form = False
 
 
@@ -82,15 +82,15 @@ def clear_performance_caches():
     """Smart cache clearing - only clear what's needed."""
     try:
         # Clear game-specific caches
-        get_games_summary.clear()
-        get_single_game_details.clear()
-        get_total_game_count.clear()
+        get_games_summary.clear()  # type: ignore
+        get_single_game_details.clear()  # type: ignore
+        get_total_game_count.clear()  # type: ignore
 
         # Clear resource cache if needed
         if (
             time.time() - st.session_state.get("last_cache_clear", 0) > 1800
         ):  # 30 minutes
-            get_cached_players_and_settings.clear()
+            get_cached_players_and_settings.clear()  # type: ignore
             st.session_state.last_cache_clear = time.time()
 
     except Exception as e:
@@ -160,10 +160,6 @@ def edit_game_dialog(game_data: Dict, game_number: int):
     game_title = ut.format_game_title(game_number, game_data["game_date"])
 
     st.write(f"**Editing:** {game_title}")
-    st.components.v1.html(
-        "<script>setTimeout(() => document.activeElement.blur(), 10);</script>",
-        height=0,
-    )
 
     # Lazy load detailed game data
     with st.spinner("Loading game details..."):
@@ -523,7 +519,7 @@ def display_new_game_form():
                                     setting_name,
                                     value=1,
                                     step=1,
-                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
+                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}"
                                 )
                                 if value > 0:
                                     setting_values[setting_id] = str(int(value))
@@ -531,7 +527,7 @@ def display_new_game_form():
                             elif setting_type == "boolean":
                                 value = st.toggle(
                                     setting_name,
-                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
+                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}"
                                 )
                                 setting_values[setting_id] = str(value)
 
@@ -542,7 +538,7 @@ def display_new_game_form():
                                     max_value=1440,
                                     value=60,
                                     step=1,
-                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
+                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}"
                                 )
                                 if value >= 1:
                                     setting_values[setting_id] = str(int(value))
@@ -556,7 +552,7 @@ def display_new_game_form():
                                     value = st.selectbox(
                                         setting_name,
                                         options=options,
-                                        key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
+                                        key=f"setting_{setting_id}_{st.session_state.game_form_counter}"
                                     )
                                     if value and value.strip():
                                         setting_values[setting_id] = value
@@ -610,8 +606,7 @@ init_session_state()
 # Main app layout
 st.header("Game Results")
 tab1, tab2 = st.tabs(
-    [s.center(16, "\u2001") for s in ["Game History", "Record New Game"]],
-    key="results_tab",
+    [s.center(16, "\u2001") for s in ["Game History", "Record New Game"]]
 )
 
 # Game history tab with advanced optimizations
