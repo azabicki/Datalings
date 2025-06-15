@@ -133,6 +133,7 @@ def delete_game_dialog(game_data: Dict, game_number: int):
         ):
             if db.delete_game_from_database(game_id):
                 clear_performance_caches()
+                st.session_state.refresh_statistics = True
                 st.session_state.action_message = (
                     f"Game #{game_number} deleted successfully!"
                 )
@@ -315,6 +316,7 @@ def edit_game_dialog(game_data: Dict, game_number: int):
                 edit_notes or "",
             ):
                 clear_performance_caches()
+                st.session_state.refresh_statistics = True
                 st.session_state.action_message = (
                     f"Game #{game_number} updated successfully!"
                 )
@@ -590,6 +592,7 @@ def display_new_game_form():
                     del st.session_state[submission_key]
                     st.session_state.game_form_counter += 1
                     clear_performance_caches()
+                    st.session_state.refresh_statistics = True
                     new_count = db.get_games_count()
                     st.session_state.action_message = (
                         f"Game #{new_count} recorded successfully!"
