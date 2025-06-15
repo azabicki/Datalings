@@ -92,6 +92,7 @@ def edit_setting_dialog(
             "New Note (optional)",
             value=current_note,
             height=80,
+            placeholder="Optional description of this setting...",
             key=f"edit_setting_note_{setting_id}",
         )
 
@@ -133,7 +134,7 @@ def edit_setting_dialog(
         list_items_df = get_cached_list_items(setting_id)
         if len(list_items_df) > 0:
             for idx, (_, item_row) in enumerate(list_items_df.iterrows(), 1):
-                col_item, col_edit = st.columns([3, 1])
+                col_item, col_edit = st.columns([7, 3])
                 item_id = int(item_row["id"])
                 item_value = str(item_row["value"])
 
@@ -178,7 +179,7 @@ def edit_setting_dialog(
                 f"💡 Activate  _**{current_name}**_ once you've added all desired list items."
             )
 
-        col_input, col_add = st.columns([3, 1], vertical_alignment="bottom")
+        col_input, col_add = st.columns([7, 3], vertical_alignment="bottom")
 
         with col_input:
             input_counter_key = f"input_counter_{setting_id}"
@@ -529,6 +530,7 @@ with st.container(border=True):
                             format_func=lambda option: updown[option],
                             key=segment_key,
                             selection_mode="single",
+                            help="Move this setting up or down",
                             label_visibility="collapsed",
                             default=None,
                         )
@@ -552,6 +554,7 @@ with st.container(border=True):
                         key=f"edit_setting_{setting_id}",
                         type="secondary",
                         icon=":material/edit:",
+                        help="Edit this settings",
                         use_container_width=True,
                     ):
                         edit_setting_dialog(
@@ -588,7 +591,7 @@ with st.container(border=True):
                         help=(
                             "Add list items before activating"
                             if button_disabled
-                            else None
+                            else "Activate/Deactivate this setting"
                         ),
                     ):
                         if db.update_game_setting_status_in_database(
