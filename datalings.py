@@ -649,8 +649,7 @@ else:
             player_stats.items(), key=lambda x: x[1]["podium_rate"], reverse=True
         ):
             st.write(
-                f"**{name}**: {stats['podium_rate']:.1f}% "
-                + "({stats['podium_finishes']}/{stats['games_played']} games)"
+                f"**{name}**: {stats['podium_rate']:.1f}% ({stats['podium_finishes']}/{stats['games_played']} games)"
             )
 
     st.markdown("---")
