@@ -985,3 +985,107 @@ def delete_game_from_database(game_id: int) -> bool:
         logger.error(f"Error deleting game {game_id}: {e}")
         st.error(f"Error deleting game: {e}")
         return False
+
+
+def get_games_count() -> int:
+    """Return total number of games in the database."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        result = conn.query(
+            "SELECT COUNT(*) as count FROM datalings_games",
+            ttl=0,
+        )
+        return int(result.iloc[0]["count"])
+    except Exception as e:
+        logger.error(f"Error counting games: {e}")
+        st.error(f"Error counting games: {e}")
+        return 0
+
+
+def get_games_summary(limit: int, offset: int) -> pd.DataFrame:
+    """Get paginated game summaries."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        summary_query = """
+        SELECT
+            g.id, g.game_date, g.notes, g.created_at,
+            COUNT(DISTINCT s.player_id) as player_count,
+            MAX(s.score) as highest_score,
+            MIN(s.score) as lowest_score
+        FROM datalings_games g
+        LEFT JOIN datalings_game_scores s ON g.id = s.game_id
+        GROUP BY g.id, g.game_date, g.notes, g.created_at
+        ORDER BY g.game_date DESC, g.id DESC
+        LIMIT :limit OFFSET :offset
+        """
+        df = conn.query(
+            summary_query,
+            params={"limit": limit, "offset": offset},
+            ttl=0,
+        )
+        return df
+    except Exception as e:
+        logger.error(f"Error fetching games summary: {e}")
+        st.error(f"Error fetching games summary: {e}")
+        return pd.DataFrame()
+
+
+def get_single_game_details(game_id: int) -> dict:
+    """Return detailed scores and settings for a single game."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        game_query = """
+        SELECT
+            s.player_id, p.name as player_name, s.score,
+            sv.setting_id, gs.name as setting_name, gs.type as setting_type,
+            gs.position,
+            CASE
+                WHEN gs.type = 'list' THEN sv.value_text
+                WHEN gs.type = 'number' THEN CAST(sv.value_number AS CHAR)
+                WHEN gs.type = 'boolean' THEN CASE WHEN sv.value_boolean = 1 THEN 'True' ELSE 'False' END
+                WHEN gs.type = 'time' THEN CAST(sv.value_time_minutes AS CHAR)
+                ELSE ''
+            END as setting_value
+        FROM datalings_games g
+        LEFT JOIN datalings_game_scores s ON g.id = s.game_id
+        LEFT JOIN datalings_players p ON s.player_id = p.id
+        LEFT JOIN datalings_game_setting_values sv ON g.id = sv.game_id
+        LEFT JOIN datalings_game_settings gs ON sv.setting_id = gs.id
+        WHERE g.id = :game_id
+        ORDER BY s.score DESC, gs.position
+        """
+        df = conn.query(game_query, params={"game_id": game_id}, ttl=0)
+        if df.empty:
+            return {"scores": [], "settings": []}
+
+        scores = []
+        settings = []
+        seen_players = set()
+        seen_settings = set()
+
+        for _, row in df.iterrows():
+            if pd.notna(row["player_id"]) and row["player_id"] not in seen_players:
+                scores.append(
+                    {
+                        "player_id": row["player_id"],
+                        "player_name": row["player_name"],
+                        "score": row["score"],
+                    }
+                )
+                seen_players.add(row["player_id"])
+            if pd.notna(row["setting_id"]) and row["setting_id"] not in seen_settings:
+                settings.append(
+                    {
+                        "setting_id": row["setting_id"],
+                        "setting_name": row["setting_name"],
+                        "setting_type": row["setting_type"],
+                        "value": row["setting_value"] or "",
+                    }
+                )
+                seen_settings.add(row["setting_id"])
+
+        return {"scores": scores, "settings": settings}
+    except Exception as e:
+        logger.error(f"Error fetching game {game_id} details: {e}")
+        st.error(f"Error fetching game details: {e}")
+        return {"scores": [], "settings": []}

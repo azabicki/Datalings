@@ -52,6 +52,7 @@ def edit_player_dialog(player_id: int, current_name: str):
         if save_button and new_name.strip():
             if db.update_player_name_in_database(player_id, new_name.strip()):
                 get_cached_players.clear()
+                st.session_state["refresh_record_form"] = True
                 st.rerun()
         elif cancel_button:
             st.rerun()
@@ -122,6 +123,7 @@ def edit_setting_dialog(
                 ):
                     get_cached_settings.clear()
                     get_cached_list_items.clear()
+                    st.session_state["refresh_record_form"] = True
                     st.rerun()
         elif save_button and not new_name.strip():
             st.error("Please enter a valid setting name.")
@@ -340,6 +342,7 @@ with st.container(border=True):
                             player_id, new_status
                         ):
                             get_cached_players.clear()
+                            st.session_state["refresh_record_form"] = True
                             st.rerun()
 
         else:
@@ -372,6 +375,7 @@ with st.container(border=True):
                 if new_player_name.strip():
                     if db.add_player_to_database(new_player_name.strip()):
                         get_cached_players.clear()
+                        st.session_state["refresh_record_form"] = True
                         # Increment form counter to reset the form
                         st.session_state.form_counter += 1
                         st.rerun()
@@ -540,11 +544,13 @@ with st.container(border=True):
                         if position_action == 1:  # Move up
                             if db.move_setting_up(setting_id):
                                 get_cached_settings.clear()
+                                st.session_state["refresh_record_form"] = True
                                 st.session_state[counter_key] += 1
                                 st.rerun()
                         elif position_action == 0:  # Move down
                             if db.move_setting_down(setting_id):
                                 get_cached_settings.clear()
+                                st.session_state["refresh_record_form"] = True
                                 st.session_state[counter_key] += 1
                                 st.rerun()
 
@@ -598,6 +604,7 @@ with st.container(border=True):
                             setting_id, new_status
                         ):
                             get_cached_settings.clear()
+                            st.session_state["refresh_record_form"] = True
                             st.rerun()
 
         else:
@@ -660,6 +667,7 @@ with st.container(border=True):
                         setting_type,
                     ):
                         get_cached_settings.clear()
+                        st.session_state["refresh_record_form"] = True
                         # Increment form counter to reset the form
                         st.session_state.settings_form_counter += 1
                         st.rerun()
