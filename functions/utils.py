@@ -54,6 +54,10 @@ def create_sidebar() -> None:
     #     label=":material/dashboard: Hall of Fame",
     # )
     st.sidebar.page_link(
+        os.path.join("pages", "datalings2.py"),
+        label=":material/dashboard: Standings2",
+    )
+    st.sidebar.page_link(
         os.path.join("pages", "statistics.py"),
         label=":material/query_stats: Statistics",
     )

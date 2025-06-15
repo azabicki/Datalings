@@ -6,7 +6,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import numpy as np
 import altair as alt
 
 st.set_page_config(page_title="Datalings Dashboard", layout=ut.app_layout)
@@ -187,11 +186,8 @@ def calculate_comprehensive_stats():
                 setting_name_lower = setting_info["setting_name"].lower()
                 if "age" in setting_name_lower:
                     age_games += 1
-                    try:
-                        age_value = int(float(setting_info["value"]))
-                        total_age += age_value
-                    except:
-                        pass
+                    age_value = int(float(setting_info["value"]))
+                    total_age += age_value
 
     return player_stats, scores_df, total_games, total_age, age_games
 
@@ -575,7 +571,8 @@ def create_heatmap_plotly(h2h_matrix):
 
 
 # Main app #####################################################################
-st.subheader("_Well well well.... who should we throw under the bus..???_")
+st.markdown("#### _well well well.... who should be thrown under the bus..???_")
+ut.h_spacer(2)
 # Calculate comprehensive statistics
 stats_result = calculate_comprehensive_stats()
 
