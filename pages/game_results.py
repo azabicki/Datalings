@@ -70,6 +70,8 @@ def init_session_state():
         st.session_state.last_cache_clear = time.time()
     if "refresh_record_form" not in st.session_state:
         st.session_state.refresh_record_form = False
+    if "refresh_statistics" not in st.session_state:
+        st.session_state.refresh_statistics = False
     if "action_message" not in st.session_state:
         st.session_state.action_message = ""
     if "results_tab" not in st.session_state:
