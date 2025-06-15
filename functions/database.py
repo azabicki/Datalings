@@ -17,7 +17,8 @@ def init_tables():
         name VARCHAR(255) NOT NULL UNIQUE,
         is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_players_active (is_active)
     )
     """
 
@@ -43,7 +44,9 @@ def init_tables():
         position INT NOT NULL DEFAULT 0,
         is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_game_settings_active (is_active),
+        INDEX idx_game_settings_position (position)
     )
     """
 
@@ -56,7 +59,8 @@ def init_tables():
         order_index INT NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (setting_id) REFERENCES datalings_game_settings(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_setting_value (setting_id, value)
+        UNIQUE KEY unique_setting_value (setting_id, value),
+        INDEX idx_setting_order (setting_id, order_index)
     )
     """
 
@@ -149,7 +153,10 @@ def get_all_players() -> pd.DataFrame:
     """Get all players from the database."""
     conn = st.connection("mysql", type="sql")
     try:
-        df = conn.query("SELECT * FROM datalings_players ORDER BY name", ttl=0)
+        df = conn.query(
+            "SELECT id, name, is_active FROM datalings_players ORDER BY name",
+            ttl=0,
+        )
         return df
     except Exception as e:
         logger.error(f"Error fetching players: {e}")
@@ -162,7 +169,7 @@ def get_active_players() -> pd.DataFrame:
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_players WHERE is_active = 1 ORDER BY name",
+            "SELECT id, name, is_active FROM datalings_players WHERE is_active = 1 ORDER BY name",
             ttl=0,
         )
         return df
@@ -237,7 +244,7 @@ def update_player_name_in_database(player_id: int, new_name: str) -> bool:
         return False
 
 
-def player_exists(name: str) -> bool:
+def player_exists_in_database(name: str) -> bool:
     """Check if a player with the given name exists."""
     conn = st.connection("mysql", type="sql")
     try:
@@ -257,7 +264,9 @@ def get_all_game_settings() -> pd.DataFrame:
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_game_settings ORDER BY position", ttl=0
+            "SELECT id, name, note, type, position, is_active "
+            "FROM datalings_game_settings ORDER BY position",
+            ttl=0,
         )
         return df
     except Exception as e:
@@ -271,7 +280,8 @@ def get_active_game_settings() -> pd.DataFrame:
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_game_settings WHERE is_active = 1 ORDER BY position",
+            "SELECT id, name, note, type, position, is_active "
+            "FROM datalings_game_settings WHERE is_active = 1 ORDER BY position",
             ttl=0,
         )
         return df
@@ -286,7 +296,8 @@ def get_game_setting_list_items(setting_id: int) -> pd.DataFrame:
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_game_setting_list_items WHERE setting_id = :setting_id ORDER BY order_index, value",
+            "SELECT id, setting_id, value, order_index "
+            "FROM datalings_game_setting_list_items WHERE setting_id = :setting_id ORDER BY order_index, value",
             params={"setting_id": setting_id},
             ttl=0,
         )
@@ -297,7 +308,7 @@ def get_game_setting_list_items(setting_id: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_next_position() -> int:
+def get_next_game_setting_position() -> int:
     """Get the next available position for a new game setting."""
     conn = st.connection("mysql", type="sql")
     try:
@@ -321,7 +332,7 @@ def add_game_setting_to_database(
         is_active = 0 if setting_type == "list" else 1
 
         # Get next position
-        position = get_next_position()
+        position = get_next_game_setting_position()
 
         with conn.session as session:
             session.execute(
