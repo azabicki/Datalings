@@ -6,7 +6,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import altair as alt
 
 st.set_page_config(page_title="Datalings Dashboard", layout=ut.app_layout)
 
@@ -188,12 +187,21 @@ def create_total_points_bar_chart(
 
 def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.Figure:
     """Create cumulative score chart with Plotly."""
+    # Order players in the legend by final cumulative score (highest first)
+    ordered_players = (
+        cumulative_df.groupby("Player")["Cumulative Score"]
+        .max()
+        .sort_values(ascending=False)
+        .index.tolist()
+    )
+
     fig = px.line(
         cumulative_df,
         x="Game",
         y="Cumulative Score",
         color="Player",
         color_discrete_map=color_map,
+        category_orders={"Player": ordered_players},
         markers=False,
         hover_data=["Game Date"],
     )
@@ -233,130 +241,12 @@ def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.
         hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
     )
 
-    fig.update_xaxes(tickprefix="Game ")
+    fig.update_xaxes(tickprefix="Game ", dtick=1)
+
     return fig
 
 
 # 2 Chart creation functions ##########################################
-def create_wins_chart(wins_df: pd.DataFrame, color_map: dict) -> go.Figure:
-    """Create wins chart with Plotly following the Altair style."""
-    fig = px.bar(
-        wins_df,
-        x="Player",
-        y="Wins",
-        color="Player",
-        color_discrete_map=color_map,
-        text="Wins",
-    )
-
-    fig.update_layout(
-        height=400,
-        title="Total Wins by Player",
-        xaxis_title="",
-        yaxis_title="Games Won",
-        xaxis=dict(categoryorder="total descending"),
-        showlegend=False,
-        font=dict(color="black"),
-    )
-
-    fig.update_traces(
-        textposition="inside",
-        insidetextanchor="end",
-        textfont=dict(size=12),
-        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
-    )
-
-    return fig
-
-
-def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.Figure:
-    """Create win rate & podium rate grouped bar chart."""
-    fig = go.Figure()
-
-    for _, row in rate_df.iterrows():
-        color = color_map.get(row["Player"], None)
-        darker = darken_color(color)
-        fig.add_trace(
-            go.Bar(
-                x=[row["Player"]],
-                y=[row["Win Rate"]],
-                showlegend=False,
-                marker_color=color,
-                offsetgroup="win",
-                hovertemplate=f"{row['Player']} Win Rate: {row['Win Rate']:.1f}%<extra></extra>",
-                hoverlabel=dict(
-                    bgcolor="lightyellow", font_size=14, font_color="black"
-                ),
-            )
-        )
-        fig.add_trace(
-            go.Bar(
-                x=[row["Player"]],
-                y=[row["Podium Rate"]],
-                showlegend=False,
-                marker_color=darker,
-                offsetgroup="podium",
-                hovertemplate=f"{row['Player']} Podium Rate: {row['Podium Rate']:.1f}%<extra></extra>",
-                hoverlabel=dict(
-                    bgcolor="lightyellow", font_size=14, font_color="black"
-                ),
-            )
-        )
-
-    # Legend items with grey colors
-    fig.add_trace(
-        go.Bar(
-            x=[None],
-            y=[None],
-            name="Win Rate",
-            marker_color="gainsboro",
-            showlegend=True,
-        )
-    )
-    fig.add_trace(
-        go.Bar(
-            x=[None],
-            y=[None],
-            name="Podium Rate",
-            marker_color="gray",
-            showlegend=True,
-        )
-    )
-
-    fig.update_layout(
-        height=400,
-        barmode="group",
-        title="Win Rate & Podium Rate by Player",
-        xaxis_title="",
-        yaxis_title="Rate (%)",
-        yaxis=dict(dtick=10),
-        font=dict(color="black"),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="center",
-            x=0.5,
-            title=None,
-            font_size=14,
-        ),
-        modebar=dict(
-            remove=[
-                "pan2d",
-                "select2d",
-                "lasso2d",
-                "zoom2d",
-                "zoomIn2d",
-                "zoomOut2d",
-                "autoScale2d",
-                "resetScale2d",
-            ]
-        ),
-    )
-
-    return fig
-
-
 def create_victory_statistics_figure(
     wins_df: pd.DataFrame, rate_df: pd.DataFrame, color_map: dict
 ) -> go.Figure:
@@ -364,7 +254,7 @@ def create_victory_statistics_figure(
     fig = make_subplots(
         rows=2,
         cols=1,
-        subplot_titles=("Total Wins by Player", "Win Rate & Podium Rate by Player"),
+        subplot_titles=("Total Wins", "Win Rate & Podium Rate"),
         vertical_spacing=0.15,
     )
 
@@ -374,9 +264,6 @@ def create_victory_statistics_figure(
             x=wins_df["Player"],
             y=wins_df["Wins"],
             marker_color=[color_map[p] for p in wins_df["Player"]],
-            text=wins_df["Wins"],
-            textposition="inside",
-            insidetextanchor="end",
             hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
             showlegend=False,
         ),
@@ -385,12 +272,12 @@ def create_victory_statistics_figure(
     )
 
     fig.update_xaxes(categoryorder="total descending", row=1, col=1)
-    fig.update_yaxes(title_text="Games Won", row=1, col=1)
+    fig.update_yaxes(title_text="Games Won", dtick=1, row=1, col=1)
 
     # --- Row 2: win rate & podium rate grouped bar chart ---
     for _, row in rate_df.iterrows():
         color = color_map.get(row["Player"], None)
-        darker = darken_color(color)
+        darker = darken_color(color) # type: ignore
         fig.add_trace(
             go.Bar(
                 x=[row["Player"]],
@@ -398,7 +285,9 @@ def create_victory_statistics_figure(
                 marker_color=color,
                 offsetgroup="win",
                 hovertemplate=f"{row['Player']} Win Rate: {row['Win Rate']:.1f}%<extra></extra>",
-                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+                hoverlabel=dict(
+                    bgcolor="lightyellow", font_size=14, font_color="black"
+                ),
                 showlegend=False,
             ),
             row=2,
@@ -411,7 +300,9 @@ def create_victory_statistics_figure(
                 marker_color=darker,
                 offsetgroup="podium",
                 hovertemplate=f"{row['Player']} Podium Rate: {row['Podium Rate']:.1f}%<extra></extra>",
-                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+                hoverlabel=dict(
+                    bgcolor="lightyellow", font_size=14, font_color="black"
+                ),
                 showlegend=False,
             ),
             row=2,
@@ -419,12 +310,20 @@ def create_victory_statistics_figure(
         )
 
     fig.add_trace(
-        go.Bar(x=[None], y=[None], name="Win Rate", marker_color="gainsboro", showlegend=True),
+        go.Bar(
+            x=[None],
+            y=[None],
+            name="Win Rate",
+            marker_color="gainsboro",
+            showlegend=True,
+        ),
         row=2,
         col=1,
     )
     fig.add_trace(
-        go.Bar(x=[None], y=[None], name="Podium Rate", marker_color="gray", showlegend=True),
+        go.Bar(
+            x=[None], y=[None], name="Podium Rate", marker_color="gray", showlegend=True
+        ),
         row=2,
         col=1,
     )
@@ -436,7 +335,7 @@ def create_victory_statistics_figure(
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=1.02,
+            y=-0.1,
             xanchor="center",
             x=0.5,
             title=None,
@@ -481,7 +380,7 @@ def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go
             name="Total Points",
             marker_color=colors,
             text=ranking_df["Total Points"],
-            textposition="outside",
+            textposition="inside",
             textfont=dict(color="black"),
             hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
         ),
@@ -497,7 +396,7 @@ def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go
             name="Avg Points",
             marker_color=colors,
             text=[f"{x:.1f}" for x in ranking_df["Avg Points"]],
-            textposition="outside",
+            textposition="inside",
             textfont=dict(color="black"),
             hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
         ),
@@ -658,64 +557,6 @@ def create_performance_radar_streamlit(metrics_for_radar, color_map: dict) -> No
         radar_display.style.background_gradient(subset=categories, cmap="RdYlGn"),
         use_container_width=True,
     )
-
-
-def create_performance_radar_altair(metrics_for_radar, color_map: dict) -> alt.Chart:
-    """Create performance radar chart with Altair (parallel coordinates)."""
-    # Convert to long format for Altair
-    radar_df = pd.DataFrame(metrics_for_radar)
-    categories = [
-        "Total Score",
-        "Win Rate",
-        "Podium Rate",
-        "Ranking Consistency",
-        "Games Played",
-    ]
-
-    # Melt the DataFrame
-    melted_df = radar_df.melt(
-        id_vars=["Player"], value_vars=categories, var_name="Metric", value_name="Value"
-    )
-
-    # Create parallel coordinates chart
-    chart = (
-        alt.Chart(melted_df)
-        .mark_line(strokeWidth=5, opacity=0.8)
-        .encode(
-            x=alt.X(
-                "Metric:N",
-                title="Performance Metrics",
-                axis=alt.Axis(labelColor="black", titleColor="black"),
-            ),
-            y=alt.Y(
-                "Value:Q",
-                title="Score (0-100)",
-                scale=alt.Scale(domain=[0, 100]),
-                axis=alt.Axis(labelColor="black", titleColor="black"),
-            ),
-            color=alt.Color(
-                "Player:N",
-                scale=alt.Scale(
-                    domain=list(color_map.keys()), range=list(color_map.values())
-                ),
-                legend=alt.Legend(labelColor="black", titleColor="black"),
-            ),
-            tooltip=["Player:N", "Metric:N", "Value:Q"],
-        )
-        .properties(
-            width=600,
-            height=400,
-            title=alt.TitleParams(
-                text="Multi-Dimensional Performance (Parallel Coordinates)",
-                color="black",
-            ),
-        )
-        .configure_axis(labelColor="black", titleColor="black")
-        .configure_title(color="black")
-    )
-
-    return chart
-
 
 
 # Main app #####################################################################
