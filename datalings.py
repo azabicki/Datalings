@@ -142,50 +142,6 @@ def calculate_comprehensive_stats():
 
 
 # 1 Chart creation functions ##########################################
-def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.Figure:
-    """Create cumulative score chart with Plotly."""
-    fig = px.line(
-        cumulative_df,
-        x="Game",
-        y="Cumulative Score",
-        color="Player",
-        color_discrete_map=color_map,
-        markers=False,
-        hover_data=["Game Date"],
-    )
-
-    fig.update_layout(
-        height=400,
-        title="",
-        xaxis_title="",
-        yaxis_title="Cumulative Score",
-        hovermode="x unified",
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None),
-        modebar=dict(
-            remove=[
-                "pan2d",
-                "select2d",
-                "lasso2d",
-                "zoom2d",
-                "zoomIn2d",
-                "zoomOut2d",
-                "autoScale2d",
-                "resetScale2d",
-            ]
-        ),
-    )
-
-    fig.update_traces(
-        line=dict(width=5),
-        marker=dict(size=10),
-        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
-    )
-
-    fig.update_xaxes(tickprefix="Game ")
-    return fig
-
-
 def create_total_points_bar_chart(
     total_points_df: pd.DataFrame, color_map: dict
 ) -> go.Figure:
@@ -223,71 +179,66 @@ def create_total_points_bar_chart(
     fig.update_traces(
         textposition="inside",
         insidetextanchor="end",
-        textfont=dict(size=14),
+        textfont=dict(size=24),
         hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
     )
 
     return fig
 
 
+def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.Figure:
+    """Create cumulative score chart with Plotly."""
+    fig = px.line(
+        cumulative_df,
+        x="Game",
+        y="Cumulative Score",
+        color="Player",
+        color_discrete_map=color_map,
+        markers=False,
+        hover_data=["Game Date"],
+    )
+
+    fig.update_layout(
+        height=400,
+        title="",
+        xaxis_title="",
+        yaxis_title="Cumulative Score",
+        hovermode="x unified",
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            title=None,
+            font_size=14,
+        ),
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
+    )
+
+    fig.update_traces(
+        line=dict(width=5),
+        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+    )
+
+    fig.update_xaxes(tickprefix="Game ")
+    return fig
+
+
 # 2 Chart creation functions ##########################################
-def create_wins_chart(wins_df: pd.DataFrame, color_map: dict) -> alt.Chart:
-    """Create wins chart with Altair."""
-    chart = (
-        alt.Chart(wins_df)
-        .mark_bar()
-        .encode(
-            x=alt.X(
-                "Player:N",
-                title="Player",
-                sort="-y",
-                axis=alt.Axis(labelColor="black", titleColor="black"),
-            ),
-            y=alt.Y(
-                "Wins:Q",
-                title="Total Wins",
-                axis=alt.Axis(tickMinStep=1, labelColor="black", titleColor="black"),
-            ),
-            color=alt.Color(
-                "Player:N",
-                scale=alt.Scale(
-                    domain=list(color_map.keys()), range=list(color_map.values())
-                ),
-                legend=None,
-            ),
-            tooltip=["Player:N", "Wins:Q"],
-        )
-        .properties(
-            width=500,
-            height=400,
-            title=alt.TitleParams(text="Total Wins by Player (Altair)", color="black"),
-        )
-    )
-
-    # Add text labels
-    text = (
-        alt.Chart(wins_df)
-        .mark_text(
-            align="center",
-            baseline="bottom",
-            dy=-5,
-            fontSize=12,
-            fontWeight="bold",
-            color="black",
-        )
-        .encode(
-            x=alt.X("Player:N", sort="-y"), y=alt.Y("Wins:Q"), text=alt.Text("Wins:Q")
-        )
-    )
-
-    return (
-        (chart + text)
-        .configure_axis(labelColor="black", titleColor="black")
-        .configure_title(color="black")
-    )
-
-
-def create_wins_chart_plotly(wins_df: pd.DataFrame, color_map: dict) -> go.Figure:
+def create_wins_chart(wins_df: pd.DataFrame, color_map: dict) -> go.Figure:
     """Create wins chart with Plotly following the Altair style."""
     fig = px.bar(
         wins_df,
@@ -301,8 +252,8 @@ def create_wins_chart_plotly(wins_df: pd.DataFrame, color_map: dict) -> go.Figur
     fig.update_layout(
         height=400,
         title="Total Wins by Player",
-        xaxis_title="Player",
-        yaxis_title="Total Wins",
+        xaxis_title="",
+        yaxis_title="Games Won",
         xaxis=dict(categoryorder="total descending"),
         showlegend=False,
         font=dict(color="black"),
@@ -358,7 +309,7 @@ def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.F
             x=[None],
             y=[None],
             name="Win Rate",
-            marker_color="lightgray",
+            marker_color="gainsboro",
             showlegend=True,
         )
     )
@@ -373,14 +324,22 @@ def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.F
     )
 
     fig.update_layout(
+        height=400,
         barmode="group",
-        height=450,
-        xaxis_title="Player",
+        title="Win Rate & Podium Rate by Player",
+        xaxis_title="",
         yaxis_title="Rate (%)",
         yaxis=dict(dtick=10),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
         font=dict(color="black"),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            title=None,
+            font_size=14,
+        ),
         modebar=dict(
             remove=[
                 "pan2d",
@@ -468,6 +427,46 @@ def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go
 
 
 # 4 Chart creation functions ##########################################
+def create_heatmap_plotly(h2h_matrix):
+    """Create head-to-head heatmap with Plotly"""
+    # Find the maximum absolute value for symmetric color scale
+    max_abs_value = max(abs(h2h_matrix.values.min()), abs(h2h_matrix.values.max()))
+
+    fig = px.imshow(
+        h2h_matrix.values,
+        labels=dict(x="Opponent", y="Player", color="Win Differential"),
+        x=h2h_matrix.columns,
+        y=h2h_matrix.index,
+        color_continuous_scale="RdYlGn",
+        range_color=[-max_abs_value, max_abs_value],
+    )
+
+    fig.update_layout(
+        height=500,
+        font=dict(color="black"),
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
+    )
+
+    fig.update_coloraxes(showscale=False)
+    fig.update_traces(
+        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black")
+    )
+
+    return fig
+
+
+# 5 Chart creation functions ##########################################
 def create_performance_radar_plotly(metrics_for_radar, color_map: dict) -> go.Figure:
     """Create performance radar chart with Plotly."""
     fig = go.Figure()
@@ -613,47 +612,6 @@ def create_performance_radar_altair(metrics_for_radar, color_map: dict) -> alt.C
     return chart
 
 
-# 5 Chart creation functions ##########################################
-def create_heatmap_plotly(h2h_matrix):
-    """Create head-to-head heatmap with Plotly"""
-    # Find the maximum absolute value for symmetric color scale
-    max_abs_value = max(abs(h2h_matrix.values.min()), abs(h2h_matrix.values.max()))
-
-    fig = px.imshow(
-        h2h_matrix.values,
-        labels=dict(x="Opponent", y="Player", color="Win Differential"),
-        x=h2h_matrix.columns,
-        y=h2h_matrix.index,
-        color_continuous_scale="RdYlGn",
-        range_color=[-max_abs_value, max_abs_value],
-        title="Head-to-Head Win-Loss Differential (Interactive)",
-    )
-
-    fig.update_layout(
-        height=400,
-        width=700,
-        font=dict(color="black"),
-        modebar=dict(
-            remove=[
-                "pan2d",
-                "select2d",
-                "lasso2d",
-                "zoom2d",
-                "zoomIn2d",
-                "zoomOut2d",
-                "autoScale2d",
-                "resetScale2d",
-            ]
-        ),
-    )
-
-    fig.update_coloraxes(showscale=False)
-    fig.update_traces(
-        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black")
-    )
-
-    return fig
-
 
 # Main app #####################################################################
 st.markdown("#### _well well well.... who should be thrown under the bus..???_")
@@ -727,6 +685,7 @@ else:
             st.plotly_chart(fig_cumulative, use_container_width=True)
 
     # 2. WIN COUNT CHART #######################################################
+    st.markdown("---")
     st.subheader("🏅 Victory Statistics")
     st.markdown(
         "*Who's bringing home the most wins? (Ties count as wins for all tied players)*"
@@ -737,7 +696,7 @@ else:
     wins_data.sort(key=lambda x: x[1], reverse=True)
     wins_df = pd.DataFrame(wins_data, columns=["Player", "Wins"])
 
-    chart_wins = create_wins_chart_plotly(wins_df, color_map)
+    chart_wins = create_wins_chart(wins_df, color_map)
     st.plotly_chart(chart_wins, use_container_width=True)
 
     # Win rate vs podium rate chart
@@ -754,30 +713,8 @@ else:
     fig_rates = create_win_rate_podium_chart(rate_df, color_map)
     st.plotly_chart(fig_rates, use_container_width=True)
 
-    # Additional win statistics
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**🥇 Win Rates**")
-        for name, stats in sorted(
-            player_stats.items(), key=lambda x: x[1]["win_rate"], reverse=True
-        ):
-            st.write(
-                f"**{name}**: {stats['win_rate']:.1f}% ({stats['wins']}/{stats['games_played']} games)"
-            )
-
-    with col2:
-        st.markdown("**🏆 Podium Rates**")
-        for name, stats in sorted(
-            player_stats.items(), key=lambda x: x[1]["podium_rate"], reverse=True
-        ):
-            st.write(
-                f"**{name}**: {stats['podium_rate']:.1f}% ({stats['podium_finishes']}/{stats['games_played']} games)"
-            )
-
-    st.markdown("---")
-
     # 3. RANKING POINTS SYSTEM #################################################
+    st.markdown("---")
     st.subheader("🎯 Ranking Points System")
     st.markdown(
         "*Based on finishing position: 1st=7pts, 2nd=4pts, 3rd=2pts, 4th+=1pt "
@@ -797,79 +734,7 @@ else:
     fig_ranking = create_ranking_chart_plotly(ranking_df, color_map)
     st.plotly_chart(fig_ranking, use_container_width=True)
 
-    st.markdown("---")
-
-    # 4. ADDITIONAL PERFORMANCE ANALYTICS ######################################
-    st.subheader("📊 Advanced Performance Analytics")
-
-    # Performance comparison radar chart
-    st.markdown("**🎯 Multi-Dimensional Performance Comparison**")
-
-    # Chart style selector
-    radar_style = st.radio(
-        "Select chart style:",
-        ["Interactive (Plotly)", "Simple (Streamlit)", "Advanced (Altair)"],
-        key="radar_style",
-        horizontal=True,
-    )
-
-    # Normalize metrics for radar chart (0-100 scale)
-    metrics_for_radar = []
-
-    max_total_score = max(s["total_score"] for s in player_stats.values())
-    min_avg_rank = min(s["avg_rank"] for s in player_stats.values())
-    max_avg_rank = max(s["avg_rank"] for s in player_stats.values())
-
-    for name, stats in player_stats.items():
-        metrics_for_radar.append(
-            {
-                "Player": name,
-                "Total Score": (stats["total_score"] / max_total_score) * 100,
-                "Win Rate": stats["win_rate"],
-                "Podium Rate": stats["podium_rate"],
-                "Ranking Consistency": 100
-                - ((stats["avg_rank"] - min_avg_rank) / (max_avg_rank - min_avg_rank))
-                * 100,
-                "Games Played": (stats["games_played"] / total_games) * 100,
-            }
-        )
-
-    if radar_style == "Interactive (Plotly)":
-        fig_radar = create_performance_radar_plotly(metrics_for_radar, color_map)
-        st.plotly_chart(fig_radar, use_container_width=True)
-    elif radar_style == "Simple (Streamlit)":
-        create_performance_radar_streamlit(metrics_for_radar, color_map)
-    else:
-        chart_radar = create_performance_radar_altair(metrics_for_radar, color_map)
-        st.altair_chart(chart_radar, use_container_width=True)
-
-    # Detailed statistics table
-    st.markdown("**📋 Detailed Player Statistics**")
-
-    detailed_stats = []
-    for name, stats in player_stats.items():
-        detailed_stats.append(
-            {
-                "Player": name,
-                "Games": stats["games_played"],
-                "Total Score": stats["total_score"],
-                "Avg Score": f"{stats['avg_score']:.1f}",
-                "Wins": stats["wins"],
-                "Win Rate": f"{stats['win_rate']:.1f}%",
-                "Podium": stats["podium_finishes"],
-                "Ranking Points": stats["total_ranking_points"],
-                "Avg Rank": f"{stats['avg_rank']:.1f}",
-                "Best Score": stats["best_score"],
-                "Consistency": f"{stats['score_consistency']:.1f}",
-            }
-        )
-
-    detailed_df = pd.DataFrame(detailed_stats)
-    detailed_df = detailed_df.sort_values("Ranking Points", ascending=False)
-
-    st.dataframe(detailed_df, use_container_width=True, hide_index=True)
-
-    # 5: Head-to-Head Performance Matrix #######################################
+    # 4: Head-to-Head Performance Matrix #######################################
     st.markdown("---")
     st.subheader("⚔️ Head-to-Head Performance")
     st.markdown("*Win-loss differential between players (row vs column)*")
@@ -910,10 +775,79 @@ else:
 
     st.markdown(
         """*Matrix shows win-loss differential:*
-- positive (green) = more wins
-- zero (white) = even
-- negative (red) = more losses"""
+- green = more wins
+- white = even
+- red = more losses"""
     )
+
+    # 5. ADDITIONAL PERFORMANCE ANALYTICS ######################################
+    st.markdown("---")
+    st.subheader("📊 Advanced Performance Analytics")
+
+    # Performance comparison radar chart
+    st.markdown("**🎯 Multi-Dimensional Performance Comparison**")
+
+    # Chart style selector
+    radar_style = st.radio(
+        "Select chart style:",
+        ["Interactive (Plotly)", "Simple (Streamlit)"],
+        key="radar_style",
+        horizontal=True,
+    )
+
+    # Normalize metrics for radar chart (0-100 scale)
+    metrics_for_radar = []
+
+    max_total_score = max(s["total_score"] for s in player_stats.values())
+    min_avg_rank = min(s["avg_rank"] for s in player_stats.values())
+    max_avg_rank = max(s["avg_rank"] for s in player_stats.values())
+
+    for name, stats in player_stats.items():
+        metrics_for_radar.append(
+            {
+                "Player": name,
+                "Total Score": (stats["total_score"] / max_total_score) * 100,
+                "Win Rate": stats["win_rate"],
+                "Podium Rate": stats["podium_rate"],
+                "Ranking Consistency": 100
+                - ((stats["avg_rank"] - min_avg_rank) / (max_avg_rank - min_avg_rank))
+                * 100,
+                "Games Played": (stats["games_played"] / total_games) * 100,
+            }
+        )
+
+    if radar_style == "Interactive (Plotly)":
+        fig_radar = create_performance_radar_plotly(metrics_for_radar, color_map)
+        st.plotly_chart(fig_radar, use_container_width=True)
+    elif radar_style == "Simple (Streamlit)":
+        create_performance_radar_streamlit(metrics_for_radar, color_map)
+
+    # Detailed statistics table
+    st.markdown("**📋 Detailed Player Statistics**")
+
+    detailed_stats = []
+    for name, stats in player_stats.items():
+        detailed_stats.append(
+            {
+                "Player": name,
+                "Games": stats["games_played"],
+                "Total Score": stats["total_score"],
+                "Avg Score": f"{stats['avg_score']:.1f}",
+                "Wins": stats["wins"],
+                "Win Rate": f"{stats['win_rate']:.1f}%",
+                "Podium": stats["podium_finishes"],
+                "Ranking Points": stats["total_ranking_points"],
+                "Avg Rank": f"{stats['avg_rank']:.1f}",
+                "Best Score": stats["best_score"],
+                "Consistency": f"{stats['score_consistency']:.1f}",
+            }
+        )
+
+    detailed_df = pd.DataFrame(detailed_stats)
+    detailed_df = detailed_df.sort_values("Ranking Points", ascending=False)
+
+    st.dataframe(detailed_df, use_container_width=True, hide_index=True)
+
 
 st.markdown("---")
 st.markdown("*Keep playing to see your stats evolve! 🚀*")
