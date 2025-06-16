@@ -17,14 +17,14 @@ auth.login()
 ut.default_style()
 ut.create_sidebar()
 
-# consistent player colors (pastel tones on green background)
+# consistent player colors (slightly darker tones on green background)
 PLAYER_COLORS = [
-    "#ffadad",
-    "#ffd6a5",
-    "#caffbf",
-    "#9bf6ff",
-    "#a0c4ff",
-    "#bdb2ff",
+    "#cc8a8a",
+    "#ccab84",
+    "#a1cc98",
+    "#7cc4cc",
+    "#809ccc",
+    "#978ecc",
 ]
 
 
@@ -35,6 +35,18 @@ def assign_player_colors(players):
     for idx, player in enumerate(sorted_players):
         color_map[player] = PLAYER_COLORS[idx % len(PLAYER_COLORS)]
     return color_map
+
+
+def darken_color(hex_color: str, factor: float = 0.85) -> str:
+    """Return a darker shade of the given hex color."""
+    hex_color = hex_color.lstrip("#")
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    r = int(r * factor)
+    g = int(g * factor)
+    b = int(b * factor)
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 # Custom CSS for better styling
@@ -205,8 +217,52 @@ def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.
     fig.update_traces(
         line=dict(width=5),
         marker=dict(size=10),
-        hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
+        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
     )
+    return fig
+
+
+def create_total_points_bar_chart(total_points_df: pd.DataFrame, color_map: dict) -> go.Figure:
+    """Create total points bar chart."""
+    fig = px.bar(
+        total_points_df,
+        x="Player",
+        y="Total Score",
+        color="Player",
+        color_discrete_map=color_map,
+        title="Total Points by Player (Interactive)",
+    )
+
+    fig.update_layout(
+        height=500,
+        xaxis_title="Player",
+        yaxis_title="Total Points",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="black"),
+        xaxis=dict(categoryorder="total descending"),
+        yaxis=dict(dtick=1),
+        showlegend=False,
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
+    )
+
+    fig.update_traces(
+        text=total_points_df["Total Score"],
+        textposition="outside",
+        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+    )
+
     return fig
 
 
@@ -267,6 +323,62 @@ def create_wins_chart(wins_df: pd.DataFrame, color_map: dict) -> alt.Chart:
     )
 
 
+def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.Figure:
+    """Create win rate & podium rate grouped bar chart."""
+    fig = go.Figure()
+
+    for idx, row in rate_df.iterrows():
+        color = color_map.get(row["Player"], None)
+        darker = darken_color(color)
+        fig.add_trace(
+            go.Bar(
+                x=[row["Player"]],
+                y=[row["Win Rate"]],
+                name="Win Rate" if idx == 0 else None,
+                marker_color=color,
+                offsetgroup="win",
+                hovertemplate=f"{row['Player']} Win Rate: {row['Win Rate']:.1f}%<extra></extra>",
+                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+            )
+        )
+        fig.add_trace(
+            go.Bar(
+                x=[row["Player"]],
+                y=[row["Podium Rate"]],
+                name="Podium Rate" if idx == 0 else None,
+                marker_color=darker,
+                offsetgroup="podium",
+                hovertemplate=f"{row['Player']} Podium Rate: {row['Podium Rate']:.1f}%<extra></extra>",
+                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+            )
+        )
+
+    fig.update_layout(
+        barmode="group",
+        height=450,
+        xaxis_title="Player",
+        yaxis_title="Rate (%)",
+        yaxis=dict(dtick=10),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="black"),
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
+    )
+
+    return fig
+
+
 # 3 Chart creation functions ##########################################
 def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go.Figure:
     """Create ranking points chart with Plotly."""
@@ -288,7 +400,7 @@ def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go
             text=ranking_df["Total Points"],
             textposition="outside",
             textfont=dict(color="black"),
-            hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
+            hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
         ),
         row=1,
         col=1,
@@ -304,7 +416,7 @@ def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go
             text=[f"{x:.1f}" for x in ranking_df["Avg Points"]],
             textposition="outside",
             textfont=dict(color="black"),
-            hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
+            hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
         ),
         row=1,
         col=2,
@@ -361,7 +473,7 @@ def create_performance_radar_plotly(metrics_for_radar, color_map: dict) -> go.Fi
                 name=player_data["Player"],
                 line=dict(width=5, color=color_map.get(player_data["Player"])),
                 opacity=0.7,
-                hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
+                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
             )
         )
 
@@ -498,6 +610,7 @@ def create_heatmap_plotly(h2h_matrix):
 
     fig.update_layout(
         height=400,
+        width=700,
         font=dict(color="black"),
         modebar=dict(
             remove=[
@@ -514,7 +627,7 @@ def create_heatmap_plotly(h2h_matrix):
     )
 
     fig.update_coloraxes(showscale=False)
-    fig.update_traces(hoverlabel=dict(bgcolor="lightgrey", font_color="black"))
+    fig.update_traces(hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"))
 
     return fig
 
@@ -567,8 +680,23 @@ else:
     if cumulative_data:
         cumulative_df = pd.DataFrame(cumulative_data)
 
-        fig_cumulative = create_cumulative_chart(cumulative_df, color_map)
-        st.plotly_chart(fig_cumulative, use_container_width=True)
+        chart_options = ["Line", "Bar"]
+        if hasattr(st, "segmented_control"):
+            chart_type = st.segmented_control("Chart type", chart_options, key="cum_chart")
+        else:
+            chart_type = st.radio("Chart type", chart_options, horizontal=True, key="cum_chart")
+
+        if chart_type == "Line":
+            fig_cumulative = create_cumulative_chart(cumulative_df, color_map)
+            st.plotly_chart(fig_cumulative, use_container_width=True)
+        else:
+            total_points_data = [
+                {"Player": name, "Total Score": stats["total_score"]}
+                for name, stats in player_stats.items()
+            ]
+            total_points_df = pd.DataFrame(total_points_data).sort_values("Total Score", ascending=False)
+            fig_points = create_total_points_bar_chart(total_points_df, color_map)
+            st.plotly_chart(fig_points, use_container_width=True)
 
     st.markdown("---")
 
@@ -585,6 +713,20 @@ else:
 
     chart_wins = create_wins_chart(wins_df, color_map)
     st.altair_chart(chart_wins, use_container_width=True)
+
+    # Win rate vs podium rate chart
+    rate_data = [
+        {
+            "Player": name,
+            "Win Rate": stats["win_rate"],
+            "Podium Rate": stats["podium_rate"],
+        }
+        for name, stats in player_stats.items()
+    ]
+    rate_df = pd.DataFrame(rate_data)
+    rate_df = rate_df.set_index("Player").loc[wins_df["Player"]].reset_index()
+    fig_rates = create_win_rate_podium_chart(rate_df, color_map)
+    st.plotly_chart(fig_rates, use_container_width=True)
 
     # Additional win statistics
     col1, col2 = st.columns(2)
@@ -733,6 +875,8 @@ else:
                             h2h_matrix.loc[player1, player2] -= 1
                         # If ranks are equal (tie), no change to differential
 
+    players_sorted = sorted(player_stats.keys(), key=lambda p: player_stats[p]["total_score"], reverse=True)
+    h2h_matrix = h2h_matrix.loc[players_sorted, players_sorted]
     fig_h2h = create_heatmap_plotly(h2h_matrix)
     st.plotly_chart(fig_h2h, use_container_width=True)
 
