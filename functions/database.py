@@ -1092,13 +1092,19 @@ def get_single_game_details(game_id: int) -> dict:
 
 
 def get_all_scores() -> pd.DataFrame:
-    """Return all game scores with player names."""
+    """Return all game scores with player names and game dates."""
     conn = st.connection("mysql", type="sql")
     try:
         query = """
-            SELECT s.game_id, s.player_id, p.name AS player_name, s.score
+            SELECT s.game_id,
+                   g.game_date,
+                   s.player_id,
+                   p.name AS player_name,
+                   s.score
             FROM datalings_game_scores s
             JOIN datalings_players p ON s.player_id = p.id
+            JOIN datalings_games g ON s.game_id = g.id
+            ORDER BY g.game_date, s.game_id
         """
         return conn.query(query, ttl=0)
     except Exception as e:
@@ -1122,4 +1128,3 @@ def get_all_game_setting_values() -> pd.DataFrame:
     except Exception as e:
         logger.error(f"Error fetching all game setting values: {e}")
         return pd.DataFrame()
-
