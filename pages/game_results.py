@@ -18,101 +18,23 @@ ut.create_sidebar()
 
 
 # Advanced caching with multiple layers
-@st.cache_data(ttl=600, max_entries=3)  # 10 minutes, limit cache size
-def get_games_summary():
-    """Get just the game summary data for initial load."""
-    conn = st.connection("mysql", type="sql")
-    try:
-        # Lightweight query for initial display
-        summary_query = """
-        SELECT
-            g.id, g.game_date, g.notes, g.created_at,
-            COUNT(DISTINCT s.player_id) as player_count,
-            MAX(s.score) as highest_score,
-            MIN(s.score) as lowest_score
-        FROM datalings_games g
-        LEFT JOIN datalings_game_scores s ON g.id = s.game_id
-        GROUP BY g.id, g.game_date, g.notes, g.created_at
-        ORDER BY g.game_date DESC, g.id DESC
-        """
-
-        df = conn.query(summary_query, ttl=600)
-        return df.to_dict("records") if not df.empty else []
-
-    except Exception as e:
-        st.error(f"Error fetching games summary: {e}")
-        return []
+@st.cache_data(ttl=600, max_entries=3)
+def get_games_summary(page: int, page_size: int):
+    """Return cached game summaries for the requested page."""
+    df = db.get_games_summary(limit=page_size, offset=(page - 1) * page_size)
+    return df.to_dict("records") if not df.empty else []
 
 
-@st.cache_data(ttl=300, max_entries=50)  # Cache individual game details
+@st.cache_data(ttl=600)
+def get_total_game_count() -> int:
+    """Cached total game count for pagination."""
+    return db.get_games_count()
+
+
+@st.cache_data(ttl=300, max_entries=50)
 def get_single_game_details(game_id: int):
-    """Get detailed information for a single game - cached individually."""
-    conn = st.connection("mysql", type="sql")
-    try:
-        # Optimized single game query
-        game_query = """
-        SELECT
-            -- Scores
-            s.player_id, p.name as player_name, s.score,
-            -- Settings
-            sv.setting_id, gs.name as setting_name, gs.type as setting_type,
-            gs.position,
-            CASE
-                WHEN gs.type = 'list' THEN sv.value_text
-                WHEN gs.type = 'number' THEN CAST(sv.value_number AS CHAR)
-                WHEN gs.type = 'boolean' THEN CASE WHEN sv.value_boolean = 1 THEN 'True' ELSE 'False' END
-                WHEN gs.type = 'time' THEN CAST(sv.value_time_minutes AS CHAR)
-                ELSE ''
-            END as setting_value
-        FROM datalings_games g
-        LEFT JOIN datalings_game_scores s ON g.id = s.game_id
-        LEFT JOIN datalings_players p ON s.player_id = p.id
-        LEFT JOIN datalings_game_setting_values sv ON g.id = sv.game_id
-        LEFT JOIN datalings_game_settings gs ON sv.setting_id = gs.id
-        WHERE g.id = :game_id
-        ORDER BY s.score DESC, gs.position
-        """
-
-        df = conn.query(game_query, params={"game_id": game_id}, ttl=300)
-
-        if df.empty:
-            return {"scores": [], "settings": []}
-
-        # Process results efficiently
-        scores = []
-        settings = []
-        seen_players = set()
-        seen_settings = set()
-
-        for _, row in df.iterrows():
-            # Add player score if not already added
-            if pd.notna(row["player_id"]) and row["player_id"] not in seen_players:
-                scores.append(
-                    {
-                        "player_id": row["player_id"],
-                        "player_name": row["player_name"],
-                        "score": row["score"],
-                    }
-                )
-                seen_players.add(row["player_id"])
-
-            # Add setting if not already added
-            if pd.notna(row["setting_id"]) and row["setting_id"] not in seen_settings:
-                settings.append(
-                    {
-                        "setting_id": row["setting_id"],
-                        "setting_name": row["setting_name"],
-                        "setting_type": row["setting_type"],
-                        "value": row["setting_value"] or "",
-                    }
-                )
-                seen_settings.add(row["setting_id"])
-
-        return {"scores": scores, "settings": settings}
-
-    except Exception as e:
-        st.error(f"Error fetching game {game_id} details: {e}")
-        return {"scores": [], "settings": []}
+    """Get detailed information for a single game."""
+    return db.get_single_game_details(game_id)
 
 
 @st.cache_resource  # Cache database connection objects
@@ -127,6 +49,13 @@ def get_cached_players_and_settings():
         return pd.DataFrame(), pd.DataFrame()
 
 
+def refresh_reference_caches_if_needed():
+    """Clear cached players/settings if other pages requested it."""
+    if st.session_state.get("refresh_record_form"):
+        get_cached_players_and_settings.clear()  # type: ignore
+        st.session_state.refresh_record_form = False
+
+
 # Advanced session state management
 def init_session_state():
     """Initialize session state with performance optimizations."""
@@ -139,21 +68,29 @@ def init_session_state():
         st.session_state.game_form_counter = 0
     if "last_cache_clear" not in st.session_state:
         st.session_state.last_cache_clear = time.time()
+    if "refresh_record_form" not in st.session_state:
+        st.session_state.refresh_record_form = False
+    if "refresh_statistics" not in st.session_state:
+        st.session_state.refresh_statistics = False
+    if "action_message" not in st.session_state:
+        st.session_state.action_message = ""
+    if "results_tab" not in st.session_state:
+        st.session_state.results_tab = "Game History"
 
 
 def clear_performance_caches():
     """Smart cache clearing - only clear what's needed."""
     try:
         # Clear game-specific caches
-        get_games_summary.clear()
-        get_single_game_details.clear()
-        get_aggregated_statistics.clear()
+        get_games_summary.clear()  # type: ignore
+        get_single_game_details.clear()  # type: ignore
+        get_total_game_count.clear()  # type: ignore
 
         # Clear resource cache if needed
         if (
             time.time() - st.session_state.get("last_cache_clear", 0) > 1800
         ):  # 30 minutes
-            get_cached_players_and_settings.clear()
+            get_cached_players_and_settings.clear()  # type: ignore
             st.session_state.last_cache_clear = time.time()
 
     except Exception as e:
@@ -196,7 +133,11 @@ def delete_game_dialog(game_data: Dict, game_number: int):
         ):
             if db.delete_game_from_database(game_id):
                 clear_performance_caches()
-                st.success("Game deleted successfully!")
+                st.session_state.refresh_statistics = True
+                st.session_state.action_message = (
+                    f"Game #{game_number} deleted successfully!"
+                )
+                st.session_state.results_tab = "Game History"
                 st.rerun()
             else:
                 st.error("Failed to delete game. Please try again.")
@@ -371,7 +312,11 @@ def edit_game_dialog(game_data: Dict, game_number: int):
                 edit_notes or "",
             ):
                 clear_performance_caches()
-                st.success("Game updated successfully!")
+                st.session_state.refresh_statistics = True
+                st.session_state.action_message = (
+                    f"Game #{game_number} updated successfully!"
+                )
+                st.session_state.results_tab = "Game History"
                 st.rerun()
             else:
                 st.error("Failed to update game. Please try again.")
@@ -498,6 +443,8 @@ def display_new_game_form():
     """Optimized new game form with cached reference data."""
     st.markdown("#### Record New Game")
 
+    refresh_reference_caches_if_needed()
+
     # Use cached players and settings
     active_players, active_settings = get_cached_players_and_settings()
 
@@ -572,7 +519,7 @@ def display_new_game_form():
                                     setting_name,
                                     value=1,
                                     step=1,
-                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
+                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}"
                                 )
                                 if value > 0:
                                     setting_values[setting_id] = str(int(value))
@@ -580,7 +527,7 @@ def display_new_game_form():
                             elif setting_type == "boolean":
                                 value = st.toggle(
                                     setting_name,
-                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
+                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}"
                                 )
                                 setting_values[setting_id] = str(value)
 
@@ -591,7 +538,7 @@ def display_new_game_form():
                                     max_value=1440,
                                     value=60,
                                     step=1,
-                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
+                                    key=f"setting_{setting_id}_{st.session_state.game_form_counter}"
                                 )
                                 if value >= 1:
                                     setting_values[setting_id] = str(int(value))
@@ -605,7 +552,7 @@ def display_new_game_form():
                                     value = st.selectbox(
                                         setting_name,
                                         options=options,
-                                        key=f"setting_{setting_id}_{st.session_state.game_form_counter}",
+                                        key=f"setting_{setting_id}_{st.session_state.game_form_counter}"
                                     )
                                     if value and value.strip():
                                         setting_values[setting_id] = value
@@ -641,7 +588,12 @@ def display_new_game_form():
                     del st.session_state[submission_key]
                     st.session_state.game_form_counter += 1
                     clear_performance_caches()
-                    st.success("Game saved successfully!")
+                    st.session_state.refresh_statistics = True
+                    new_count = db.get_games_count()
+                    st.session_state.action_message = (
+                        f"Game #{new_count} recorded successfully!"
+                    )
+                    st.session_state.results_tab = "Game History"
                     st.rerun()
                 else:
                     del st.session_state[submission_key]
@@ -662,6 +614,10 @@ with tab1:
     col1, col2 = st.columns([2, 1])
     with col1:
         st.markdown("#### Game History")
+    # Success message just below the header
+    if st.session_state.get("action_message"):
+        st.success(st.session_state.action_message)
+        st.session_state.action_message = ""
 
     # Performance controls
     with col2:
@@ -674,36 +630,33 @@ with tab1:
             key="page_size_selector",
         )
 
-    # Get lightweight game summaries
-    games_data = get_games_summary()
+    total_games = get_total_game_count()
+    games_per_page = st.session_state.game_page_size
+
+    max_pages = max((total_games + games_per_page - 1) // games_per_page, 1)
+    if max_pages > 1:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.session_state.current_page = st.selectbox(
+                "Page",
+                options=list(range(1, max_pages + 1)),
+                index=min(st.session_state.current_page - 1, max_pages - 1),
+                format_func=lambda x: f"Page {x} ({min((x-1)*games_per_page + 1, total_games)}-{min(x*games_per_page, total_games)} of {total_games})",
+                key="page_selector",
+            )
+    else:
+        st.session_state.current_page = 1
+
+    games_data = get_games_summary(st.session_state.current_page, games_per_page)
 
     if games_data:
-        total_games = len(games_data)
-        games_per_page = st.session_state.game_page_size
-
-        # Advanced pagination
-        if total_games > games_per_page:
-            max_pages = (total_games + games_per_page - 1) // games_per_page
-
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                st.session_state.current_page = st.selectbox(
-                    "Page",
-                    options=list(range(1, max_pages + 1)),
-                    index=min(st.session_state.current_page - 1, max_pages - 1),
-                    format_func=lambda x: f"Page {x} ({min((x-1)*games_per_page + 1, total_games)}-{min(x*games_per_page, total_games)} of {total_games})",
-                    key="page_selector",
-                )
-
-            start_idx = (st.session_state.current_page - 1) * games_per_page
-            end_idx = min(start_idx + games_per_page, total_games)
-            games_to_display = games_data[start_idx:end_idx]
-        else:
-            games_to_display = games_data
+        games_to_display = games_data
 
         # Display games with optimized rendering
         for idx, game_data in enumerate(games_to_display):
-            game_number = total_games - (games_data.index(game_data))
+            game_number = total_games - (
+                (st.session_state.current_page - 1) * games_per_page + idx
+            )
             display_single_game(game_data, game_number)
 
     else:

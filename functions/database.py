@@ -17,7 +17,8 @@ def init_tables():
         name VARCHAR(255) NOT NULL UNIQUE,
         is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_players_active (is_active)
     )
     """
 
@@ -43,7 +44,9 @@ def init_tables():
         position INT NOT NULL DEFAULT 0,
         is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_game_settings_active (is_active),
+        INDEX idx_game_settings_position (position)
     )
     """
 
@@ -56,7 +59,8 @@ def init_tables():
         order_index INT NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (setting_id) REFERENCES datalings_game_settings(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_setting_value (setting_id, value)
+        UNIQUE KEY unique_setting_value (setting_id, value),
+        INDEX idx_setting_order (setting_id, order_index)
     )
     """
 
@@ -149,7 +153,10 @@ def get_all_players() -> pd.DataFrame:
     """Get all players from the database."""
     conn = st.connection("mysql", type="sql")
     try:
-        df = conn.query("SELECT * FROM datalings_players ORDER BY name", ttl=0)
+        df = conn.query(
+            "SELECT id, name, is_active FROM datalings_players ORDER BY name",
+            ttl=0,
+        )
         return df
     except Exception as e:
         logger.error(f"Error fetching players: {e}")
@@ -162,7 +169,7 @@ def get_active_players() -> pd.DataFrame:
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_players WHERE is_active = 1 ORDER BY name",
+            "SELECT id, name, is_active FROM datalings_players WHERE is_active = 1 ORDER BY name",
             ttl=0,
         )
         return df
@@ -237,27 +244,15 @@ def update_player_name_in_database(player_id: int, new_name: str) -> bool:
         return False
 
 
-def player_exists(name: str) -> bool:
-    """Check if a player with the given name exists."""
-    conn = st.connection("mysql", type="sql")
-    try:
-        result = conn.query(
-            "SELECT COUNT(*) as count FROM datalings_players WHERE name = :name",
-            params={"name": name},
-            ttl=60,
-        )
-        return result["count"].iloc[0] > 0
-    except Exception as e:
-        logger.error(f"Error checking if player exists: {e}")
-        return False
-
 
 def get_all_game_settings() -> pd.DataFrame:
     """Get all game settings from the database ordered by position."""
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_game_settings ORDER BY position", ttl=0
+            "SELECT id, name, note, type, position, is_active "
+            "FROM datalings_game_settings ORDER BY position",
+            ttl=0,
         )
         return df
     except Exception as e:
@@ -271,7 +266,8 @@ def get_active_game_settings() -> pd.DataFrame:
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_game_settings WHERE is_active = 1 ORDER BY position",
+            "SELECT id, name, note, type, position, is_active "
+            "FROM datalings_game_settings WHERE is_active = 1 ORDER BY position",
             ttl=0,
         )
         return df
@@ -286,7 +282,8 @@ def get_game_setting_list_items(setting_id: int) -> pd.DataFrame:
     conn = st.connection("mysql", type="sql")
     try:
         df = conn.query(
-            "SELECT * FROM datalings_game_setting_list_items WHERE setting_id = :setting_id ORDER BY order_index, value",
+            "SELECT id, setting_id, value, order_index "
+            "FROM datalings_game_setting_list_items WHERE setting_id = :setting_id ORDER BY order_index, value",
             params={"setting_id": setting_id},
             ttl=0,
         )
@@ -297,7 +294,7 @@ def get_game_setting_list_items(setting_id: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_next_position() -> int:
+def get_next_game_setting_position() -> int:
     """Get the next available position for a new game setting."""
     conn = st.connection("mysql", type="sql")
     try:
@@ -321,7 +318,7 @@ def add_game_setting_to_database(
         is_active = 0 if setting_type == "list" else 1
 
         # Get next position
-        position = get_next_position()
+        position = get_next_game_setting_position()
 
         with conn.session as session:
             session.execute(
@@ -470,25 +467,6 @@ def game_setting_exists_except_id(name: str, setting_id: int) -> bool:
         logger.error(f"Error checking if game setting exists: {e}")
         return False
 
-
-def update_setting_position(setting_id: int, new_position: int) -> bool:
-    """Update the position of a game setting."""
-    conn = st.connection("mysql", type="sql")
-    try:
-        with conn.session as session:
-            session.execute(
-                text(
-                    "UPDATE datalings_game_settings SET position = :position WHERE id = :id"
-                ),
-                {"position": new_position, "id": setting_id},
-            )
-            session.commit()
-        logger.info(f"Setting ID {setting_id} position updated to {new_position}")
-        return True
-    except Exception as e:
-        logger.error(f"Error updating setting position: {e}")
-        st.error(f"Error updating setting position: {e}")
-        return False
 
 
 def move_setting_up(setting_id: int) -> bool:
@@ -751,82 +729,6 @@ def get_all_games() -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_game_details(game_id: int) -> dict:
-    """Get detailed information about a specific game."""
-    conn = st.connection("mysql", type="sql")
-    try:
-        # Get player scores
-        scores_df = conn.query(
-            """
-            SELECT s.player_id, p.name as player_name, s.score
-            FROM datalings_game_scores s
-            JOIN datalings_players p ON s.player_id = p.id
-            WHERE s.game_id = :game_id
-            ORDER BY s.score DESC
-        """,
-            params={"game_id": game_id},
-            ttl=0,
-        )
-
-        # Get setting values (ordered by setting creation order to maintain consistency)
-        settings_df = conn.query(
-            """
-            SELECT sv.setting_id, gs.name as setting_name, gs.type as setting_type, gs.position,
-                   sv.value_text, sv.value_number, sv.value_boolean, sv.value_time_minutes
-            FROM datalings_game_setting_values sv
-            JOIN datalings_game_settings gs ON sv.setting_id = gs.id
-            WHERE sv.game_id = :game_id
-            ORDER BY gs.position
-        """,
-            params={"game_id": game_id},
-            ttl=0,
-        )
-
-        # Format the results
-        result = {"scores": [], "settings": []}
-
-        # Process scores
-        if len(scores_df) > 0:
-            for _, score_row in scores_df.iterrows():
-                result["scores"].append(
-                    {
-                        "player_id": int(score_row["player_id"]),
-                        "player_name": str(score_row["player_name"]),
-                        "score": int(score_row["score"]),
-                    }
-                )
-
-        # Process settings
-        if len(settings_df) > 0:
-            for _, setting_row in settings_df.iterrows():
-                setting_type = str(setting_row["setting_type"])
-
-                # Get the appropriate value based on type
-                if setting_type == "list":
-                    value = str(setting_row["value_text"])
-                elif setting_type == "number":
-                    value = str(setting_row["value_number"])
-                elif setting_type == "boolean":
-                    value = "True" if setting_row["value_boolean"] == 1 else "False"
-                elif setting_type == "time":
-                    value = str(setting_row["value_time_minutes"])
-                else:
-                    value = ""
-
-                result["settings"].append(
-                    {
-                        "setting_id": int(setting_row["setting_id"]),
-                        "setting_name": str(setting_row["setting_name"]),
-                        "setting_type": setting_type,
-                        "value": value,
-                    }
-                )
-
-        return result
-    except Exception as e:
-        logger.error(f"Error fetching game details for game {game_id}: {e}")
-        return {"scores": [], "settings": []}
-
 
 def update_game_in_database(
     game_id: int, game_date, player_scores: dict, setting_values: dict, notes: str = ""
@@ -974,3 +876,146 @@ def delete_game_from_database(game_id: int) -> bool:
         logger.error(f"Error deleting game {game_id}: {e}")
         st.error(f"Error deleting game: {e}")
         return False
+
+
+def get_games_count() -> int:
+    """Return total number of games in the database."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        result = conn.query(
+            "SELECT COUNT(*) as count FROM datalings_games",
+            ttl=0,
+        )
+        return int(result.iloc[0]["count"])
+    except Exception as e:
+        logger.error(f"Error counting games: {e}")
+        st.error(f"Error counting games: {e}")
+        return 0
+
+
+def get_games_summary(limit: int, offset: int) -> pd.DataFrame:
+    """Get paginated game summaries."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        summary_query = """
+        SELECT
+            g.id, g.game_date, g.notes, g.created_at,
+            COUNT(DISTINCT s.player_id) as player_count,
+            MAX(s.score) as highest_score,
+            MIN(s.score) as lowest_score
+        FROM datalings_games g
+        LEFT JOIN datalings_game_scores s ON g.id = s.game_id
+        GROUP BY g.id, g.game_date, g.notes, g.created_at
+        ORDER BY g.game_date DESC, g.id DESC
+        LIMIT :limit OFFSET :offset
+        """
+        df = conn.query(
+            summary_query,
+            params={"limit": limit, "offset": offset},
+            ttl=0,
+        )
+        return df
+    except Exception as e:
+        logger.error(f"Error fetching games summary: {e}")
+        st.error(f"Error fetching games summary: {e}")
+        return pd.DataFrame()
+
+
+def get_single_game_details(game_id: int) -> dict:
+    """Return detailed scores and settings for a single game."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        game_query = """
+        SELECT
+            s.player_id, p.name as player_name, s.score,
+            sv.setting_id, gs.name as setting_name, gs.type as setting_type,
+            gs.position,
+            CASE
+                WHEN gs.type = 'list' THEN sv.value_text
+                WHEN gs.type = 'number' THEN CAST(sv.value_number AS CHAR)
+                WHEN gs.type = 'boolean' THEN CASE WHEN sv.value_boolean = 1 THEN 'True' ELSE 'False' END
+                WHEN gs.type = 'time' THEN CAST(sv.value_time_minutes AS CHAR)
+                ELSE ''
+            END as setting_value
+        FROM datalings_games g
+        LEFT JOIN datalings_game_scores s ON g.id = s.game_id
+        LEFT JOIN datalings_players p ON s.player_id = p.id
+        LEFT JOIN datalings_game_setting_values sv ON g.id = sv.game_id
+        LEFT JOIN datalings_game_settings gs ON sv.setting_id = gs.id
+        WHERE g.id = :game_id
+        ORDER BY s.score DESC, gs.position
+        """
+        df = conn.query(game_query, params={"game_id": game_id}, ttl=0)
+        if df.empty:
+            return {"scores": [], "settings": []}
+
+        scores = []
+        settings = []
+        seen_players = set()
+        seen_settings = set()
+
+        for _, row in df.iterrows():
+            if pd.notna(row["player_id"]) and row["player_id"] not in seen_players:
+                scores.append(
+                    {
+                        "player_id": row["player_id"],
+                        "player_name": row["player_name"],
+                        "score": row["score"],
+                    }
+                )
+                seen_players.add(row["player_id"])
+            if pd.notna(row["setting_id"]) and row["setting_id"] not in seen_settings:
+                settings.append(
+                    {
+                        "setting_id": row["setting_id"],
+                        "setting_name": row["setting_name"],
+                        "setting_type": row["setting_type"],
+                        "value": row["setting_value"] or "",
+                    }
+                )
+                seen_settings.add(row["setting_id"])
+
+        return {"scores": scores, "settings": settings}
+    except Exception as e:
+        logger.error(f"Error fetching game {game_id} details: {e}")
+        st.error(f"Error fetching game details: {e}")
+        return {"scores": [], "settings": []}
+
+
+def get_all_scores() -> pd.DataFrame:
+    """Return all game scores with player names and game dates."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        query = """
+            SELECT s.game_id,
+                   g.game_date,
+                   s.player_id,
+                   p.name AS player_name,
+                   s.score
+            FROM datalings_game_scores s
+            JOIN datalings_players p ON s.player_id = p.id
+            JOIN datalings_games g ON s.game_id = g.id
+            ORDER BY g.game_date, s.game_id
+        """
+        return conn.query(query, ttl=0)
+    except Exception as e:
+        logger.error(f"Error fetching all game scores: {e}")
+        return pd.DataFrame()
+
+
+def get_all_game_setting_values() -> pd.DataFrame:
+    """Return all game setting values for all games."""
+    conn = st.connection("mysql", type="sql")
+    try:
+        query = """
+            SELECT sv.game_id, sv.setting_id, gs.name AS setting_name,
+                   gs.type AS setting_type, sv.value_text, sv.value_number,
+                   sv.value_boolean, sv.value_time_minutes
+            FROM datalings_game_setting_values sv
+            JOIN datalings_game_settings gs ON sv.setting_id = gs.id
+            ORDER BY sv.game_id, gs.position
+        """
+        return conn.query(query, ttl=0)
+    except Exception as e:
+        logger.error(f"Error fetching all game setting values: {e}")
+        return pd.DataFrame()

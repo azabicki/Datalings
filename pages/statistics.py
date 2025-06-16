@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 from scipy.stats import gaussian_kde
-from pandas import PeriodIndex, wide_to_long
+from pandas import PeriodIndex
 
 
 st.set_page_config(page_title="Statistics", layout=ut.app_layout)
@@ -28,6 +28,9 @@ def load_all_game_data():
     if games_df.empty:
         return pd.DataFrame(), pd.DataFrame(), {}
 
+    scores_all = db.get_all_scores()
+    settings_all = db.get_all_game_setting_values()
+
     all_game_data = []
     game_stats = []
     host_selections = []
@@ -36,34 +39,41 @@ def load_all_game_data():
     for _, game_row in games_df.iterrows():
         game_id = int(game_row["id"])
         game_date = game_row["game_date"]
-        game_details = db.get_game_details(game_id)
 
-        # Game-level stats
-        scores = game_details.get("scores", [])
-        if scores:
-            game_scores = [score["score"] for score in scores]
+        scores = scores_all[scores_all["game_id"] == game_id]
+        settings = settings_all[settings_all["game_id"] == game_id]
+
+        if not scores.empty:
+            game_scores = scores["score"].tolist()
             game_duration = None
             num_ages = None
             host_selection = None
 
-            # Extract settings more efficiently
-            for setting in game_details.get("settings", []):
+            for _, setting in settings.iterrows():
                 setting_name = setting["setting_name"]
                 setting_name_lower = setting_name.lower()
 
                 if "duration" in setting_name_lower or "time" in setting_name_lower:
                     try:
-                        game_duration = float(setting["value"])
-                    except:
+                        game_duration = float(
+                            setting["value_time_minutes"] or setting["value_number"]
+                        )
+                    except Exception:
                         pass
                 elif "# ages" in setting_name_lower or setting_name_lower == "ages":
                     try:
-                        num_ages = int(float(setting["value"]))
+                        num_ages = int(
+                            float(setting["value_number"] or setting["value_text"])
+                        )
                         total_ages_played += num_ages
-                    except:
+                    except Exception:
                         pass
                 elif "host" in setting_name_lower:
-                    host_selection = setting["value"]
+                    host_selection = (
+                        setting["value_text"]
+                        or setting["value_number"]
+                        or setting["value_time_minutes"]
+                    )
                     host_selections.append(host_selection)
 
             game_total_score = sum(game_scores)
@@ -84,15 +94,14 @@ def load_all_game_data():
                 }
             )
 
-            # Individual score data
-            for score_data in scores:
+            for _, score_row in scores.iterrows():
                 all_game_data.append(
                     {
                         "game_id": game_id,
                         "game_date": game_date,
-                        "player_id": score_data["player_id"],
-                        "player_name": score_data["player_name"],
-                        "score": score_data["score"],
+                        "player_id": score_row["player_id"],
+                        "player_name": score_row["player_name"],
+                        "score": score_row["score"],
                         "duration": game_duration,
                         "num_ages": num_ages,
                         "host_selection": host_selection,
@@ -208,6 +217,9 @@ def create_metric_tile(title, value, border=True):
 
 
 # Load data ####################################################################
+if st.session_state.get("refresh_statistics"):
+    load_all_game_data.clear()  # type: ignore
+    st.session_state.refresh_statistics = False
 scores_df, games_df, summary_stats = load_all_game_data()
 
 if scores_df.empty:
