@@ -357,6 +357,111 @@ def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.F
     return fig
 
 
+def create_victory_statistics_figure(
+    wins_df: pd.DataFrame, rate_df: pd.DataFrame, color_map: dict
+) -> go.Figure:
+    """Create combined victory statistics figure with two rows."""
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        subplot_titles=("Total Wins by Player", "Win Rate & Podium Rate by Player"),
+        vertical_spacing=0.15,
+    )
+
+    # --- Row 1: total wins bar chart ---
+    fig.add_trace(
+        go.Bar(
+            x=wins_df["Player"],
+            y=wins_df["Wins"],
+            marker_color=[color_map[p] for p in wins_df["Player"]],
+            text=wins_df["Wins"],
+            textposition="inside",
+            insidetextanchor="end",
+            hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.update_xaxes(categoryorder="total descending", row=1, col=1)
+    fig.update_yaxes(title_text="Games Won", row=1, col=1)
+
+    # --- Row 2: win rate & podium rate grouped bar chart ---
+    for _, row in rate_df.iterrows():
+        color = color_map.get(row["Player"], None)
+        darker = darken_color(color)
+        fig.add_trace(
+            go.Bar(
+                x=[row["Player"]],
+                y=[row["Win Rate"]],
+                marker_color=color,
+                offsetgroup="win",
+                hovertemplate=f"{row['Player']} Win Rate: {row['Win Rate']:.1f}%<extra></extra>",
+                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+                showlegend=False,
+            ),
+            row=2,
+            col=1,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=[row["Player"]],
+                y=[row["Podium Rate"]],
+                marker_color=darker,
+                offsetgroup="podium",
+                hovertemplate=f"{row['Player']} Podium Rate: {row['Podium Rate']:.1f}%<extra></extra>",
+                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+                showlegend=False,
+            ),
+            row=2,
+            col=1,
+        )
+
+    fig.add_trace(
+        go.Bar(x=[None], y=[None], name="Win Rate", marker_color="gainsboro", showlegend=True),
+        row=2,
+        col=1,
+    )
+    fig.add_trace(
+        go.Bar(x=[None], y=[None], name="Podium Rate", marker_color="gray", showlegend=True),
+        row=2,
+        col=1,
+    )
+
+    fig.update_layout(
+        height=800,
+        barmode="group",
+        font=dict(color="black"),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            title=None,
+            font_size=14,
+        ),
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
+    )
+
+    fig.update_xaxes(title_text="", row=2, col=1)
+    fig.update_yaxes(title_text="Rate (%)", dtick=10, row=2, col=1)
+
+    return fig
+
+
 # 3 Chart creation functions ##########################################
 def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go.Figure:
     """Create ranking points chart with Plotly."""
@@ -696,10 +801,7 @@ else:
     wins_data.sort(key=lambda x: x[1], reverse=True)
     wins_df = pd.DataFrame(wins_data, columns=["Player", "Wins"])
 
-    chart_wins = create_wins_chart(wins_df, color_map)
-    st.plotly_chart(chart_wins, use_container_width=True)
-
-    # Win rate vs podium rate chart
+    # Prepare data for combined victory statistics figure
     rate_data = [
         {
             "Player": name,
@@ -710,8 +812,9 @@ else:
     ]
     rate_df = pd.DataFrame(rate_data)
     rate_df = rate_df.set_index("Player").loc[wins_df["Player"]].reset_index()
-    fig_rates = create_win_rate_podium_chart(rate_df, color_map)
-    st.plotly_chart(fig_rates, use_container_width=True)
+
+    fig_victory = create_victory_statistics_figure(wins_df, rate_df, color_map)
+    st.plotly_chart(fig_victory, use_container_width=True)
 
     # 3. RANKING POINTS SYSTEM #################################################
     st.markdown("---")
