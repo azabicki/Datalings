@@ -277,7 +277,7 @@ def create_victory_statistics_figure(
     # --- Row 2: win rate & podium rate grouped bar chart ---
     for _, row in rate_df.iterrows():
         color = color_map.get(row["Player"], None)
-        darker = darken_color(color) # type: ignore
+        darker = darken_color(color)  # type: ignore
         fig.add_trace(
             go.Bar(
                 x=[row["Player"]],
@@ -823,7 +823,6 @@ else:
     detailed_df = detailed_df.sort_values("Ranking Points", ascending=False)
 
     st.dataframe(detailed_df, use_container_width=True, hide_index=True)
-
 
 st.markdown("---")
 st.markdown("*Keep playing to see your stats evolve! 🚀*")
