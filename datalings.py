@@ -17,6 +17,25 @@ auth.login()
 ut.default_style()
 ut.create_sidebar()
 
+# consistent player colors (pastel tones on green background)
+PLAYER_COLORS = [
+    "#ffadad",
+    "#ffd6a5",
+    "#caffbf",
+    "#9bf6ff",
+    "#a0c4ff",
+    "#bdb2ff",
+]
+
+
+def assign_player_colors(players):
+    """Map each player to a consistent color."""
+    sorted_players = sorted(players)
+    color_map = {}
+    for idx, player in enumerate(sorted_players):
+        color_map[player] = PLAYER_COLORS[idx % len(PLAYER_COLORS)]
+    return color_map
+
 
 # Custom CSS for better styling
 st.markdown(
@@ -53,52 +72,25 @@ st.markdown(
 )
 
 
-def get_game_scores_with_rankings():
-    """Get all game scores with rankings calculated"""
-    games_df = db.get_all_games()
-    if games_df.empty:
+@st.cache_data(ttl=300)
+def get_game_scores_with_rankings() -> pd.DataFrame:
+    """Return all game scores with calculated ranks."""
+    scores_df = db.get_all_scores()
+    if scores_df.empty:
         return pd.DataFrame()
 
-    all_game_data = []
+    # Rank scores within each game (ties share the same rank)
+    scores_df["rank"] = (
+        scores_df.groupby("game_id")["score"]
+        .rank(method="min", ascending=False)
+        .astype(int)
+    )
 
-    for _, game_row in games_df.iterrows():
-        game_id = int(game_row["id"])
-        game_date = game_row["game_date"]
-        game_details = db.get_game_details(game_id)
-
-        if game_details["scores"]:
-            # Sort by score descending to get rankings
-            scores = sorted(
-                game_details["scores"], key=lambda x: x["score"], reverse=True
-            )
-
-            # Calculate proper ranks with ties
-            current_rank = 1
-            prev_score = None
-
-            for i, score_data in enumerate(scores):
-                # If score is different from previous, update rank to current position + 1
-                if prev_score is not None and score_data["score"] != prev_score:
-                    current_rank = i + 1
-
-                all_game_data.append(
-                    {
-                        "game_id": game_id,
-                        "game_date": game_date,
-                        "player_id": score_data["player_id"],
-                        "player_name": score_data["player_name"],
-                        "score": score_data["score"],
-                        "rank": current_rank,
-                    }
-                )
-
-                prev_score = score_data["score"]
-
-    return pd.DataFrame(all_game_data)
+    return scores_df
 
 
-def calculate_ranking_points(rank, total_players):
-    """Calculate points based on ranking system: 1st=7, 2nd=4, 3rd=2, 4th+=1 (handles ties)"""
+def calculate_ranking_points(rank: int) -> int:
+    """Return points based on finishing rank."""
     if rank == 1:
         return 7
     elif rank == 2:
@@ -109,47 +101,31 @@ def calculate_ranking_points(rank, total_players):
         return 1
 
 
+@st.cache_data(ttl=300)
 def calculate_comprehensive_stats():
-    """Calculate all scoring statistics"""
+    """Aggregate statistics for all players."""
     scores_df = get_game_scores_with_rankings()
     if scores_df.empty:
         return None
 
-    # Group by player for comprehensive stats
-    player_stats = {}
-
-    # Get total games played
     total_games = scores_df["game_id"].nunique()
 
-    for player_name in scores_df["player_name"].unique():
-        player_data = scores_df[scores_df["player_name"] == player_name]
-
-        # Basic stats
+    player_stats = {}
+    for player_name, player_data in scores_df.groupby("player_name"):
         games_played = len(player_data)
-        total_score = player_data["score"].sum()
+        total_score = int(player_data["score"].sum())
         avg_score = player_data["score"].mean()
 
-        # Win statistics (rank 1 = win, even with ties)
-        wins = len(player_data[player_data["rank"] == 1])
-        podium_finishes = len(player_data[player_data["rank"] <= 3])
+        wins = (player_data["rank"] == 1).sum()
+        podium_finishes = (player_data["rank"] <= 3).sum()
 
-        # Ranking points
-        player_data["ranking_points"] = player_data.apply(
-            lambda row: calculate_ranking_points(
-                row["rank"], len(scores_df[scores_df["game_id"] == row["game_id"]])
-            ),
-            axis=1,
-        )
-        total_ranking_points = player_data["ranking_points"].sum()
+        total_ranking_points = player_data["rank"].map(calculate_ranking_points).sum()
 
-        # Performance metrics
         best_score = player_data["score"].max()
         worst_score = player_data["score"].min()
         best_rank = player_data["rank"].min()
         worst_rank = player_data["rank"].max()
         avg_rank = player_data["rank"].mean()
-
-        # Consistency (lower is better)
         score_std = player_data["score"].std() if games_played > 1 else 0
 
         player_stats[player_name] = {
@@ -160,7 +136,7 @@ def calculate_comprehensive_stats():
             "podium_finishes": podium_finishes,
             "win_rate": wins / games_played * 100,
             "podium_rate": podium_finishes / games_played * 100,
-            "total_ranking_points": total_ranking_points,
+            "total_ranking_points": int(total_ranking_points),
             "avg_ranking_points": total_ranking_points / games_played,
             "best_score": best_score,
             "worst_score": worst_score,
@@ -171,35 +147,32 @@ def calculate_comprehensive_stats():
             "games_data": player_data,
         }
 
-    # Get all games to calculate age statistics
-    games_df = db.get_all_games()
+    settings_df = db.get_all_game_setting_values()
     total_age = 0
     age_games = 0
-
-    # Calculate age statistics from game settings
-    for _, game in games_df.iterrows():
-        game_id = int(game["id"])
-        game_details = db.get_game_details(game_id)
-
-        if game_details and game_details.get("settings"):
-            for setting_info in game_details["settings"]:
-                setting_name_lower = setting_info["setting_name"].lower()
-                if "age" in setting_name_lower:
-                    age_games += 1
-                    age_value = int(float(setting_info["value"]))
-                    total_age += age_value
+    if not settings_df.empty:
+        age_settings = settings_df[
+            settings_df["setting_name"].str.contains("age", case=False)
+        ]
+        if not age_settings.empty:
+            age_games = age_settings["game_id"].nunique()
+            age_values = age_settings["value_number"].fillna(age_settings["value_text"])
+            total_age = (
+                pd.to_numeric(age_values, errors="coerce").fillna(0).astype(int).sum()
+            )
 
     return player_stats, scores_df, total_games, total_age, age_games
 
 
 # 1 Chart creation functions ##########################################
-def create_cumulative_chart(cumulative_df):
-    """Create cumulative score chart with Plotly"""
+def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.Figure:
+    """Create cumulative score chart with Plotly."""
     fig = px.line(
         cumulative_df,
         x="Game",
         y="Cumulative Score",
         color="Player",
+        color_discrete_map=color_map,
         title="Cumulative Score Development (Interactive)",
         markers=True,
         hover_data=["Game Date"],
@@ -238,8 +211,8 @@ def create_cumulative_chart(cumulative_df):
 
 
 # 2 Chart creation functions ##########################################
-def create_wins_chart(wins_df):
-    """Create wins chart with Altair"""
+def create_wins_chart(wins_df: pd.DataFrame, color_map: dict) -> alt.Chart:
+    """Create wins chart with Altair."""
     chart = (
         alt.Chart(wins_df)
         .mark_bar()
@@ -256,7 +229,11 @@ def create_wins_chart(wins_df):
                 axis=alt.Axis(tickMinStep=1, labelColor="black", titleColor="black"),
             ),
             color=alt.Color(
-                "Player:N", scale=alt.Scale(scheme="category10"), legend=None
+                "Player:N",
+                scale=alt.Scale(
+                    domain=list(color_map.keys()), range=list(color_map.values())
+                ),
+                legend=None,
             ),
             tooltip=["Player:N", "Wins:Q"],
         )
@@ -291,8 +268,8 @@ def create_wins_chart(wins_df):
 
 
 # 3 Chart creation functions ##########################################
-def create_ranking_chart_plotly(ranking_df):
-    """Create ranking points chart with Plotly"""
+def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go.Figure:
+    """Create ranking points chart with Plotly."""
     fig = make_subplots(
         rows=1,
         cols=2,
@@ -301,21 +278,13 @@ def create_ranking_chart_plotly(ranking_df):
     )
 
     # Total points bar chart
+    colors = [color_map[p] for p in ranking_df["Player"]]
     fig.add_trace(
         go.Bar(
             x=ranking_df["Player"],
             y=ranking_df["Total Points"],
             name="Total Points",
-            marker_color=[
-                "#FF6B6B",
-                "#4ECDC4",
-                "#45B7D1",
-                "#96CEB4",
-                "#FECA57",
-                "#FF9FF3",
-                "#54A0FF",
-                "#5F27CD",
-            ][: len(ranking_df)],
+            marker_color=colors,
             text=ranking_df["Total Points"],
             textposition="outside",
             textfont=dict(color="black"),
@@ -331,16 +300,7 @@ def create_ranking_chart_plotly(ranking_df):
             x=ranking_df["Player"],
             y=ranking_df["Avg Points"],
             name="Avg Points",
-            marker_color=[
-                "#FF6B6B",
-                "#4ECDC4",
-                "#45B7D1",
-                "#96CEB4",
-                "#FECA57",
-                "#FF9FF3",
-                "#54A0FF",
-                "#5F27CD",
-            ][: len(ranking_df)],
+            marker_color=colors,
             text=[f"{x:.1f}" for x in ranking_df["Avg Points"]],
             textposition="outside",
             textfont=dict(color="black"),
@@ -377,8 +337,8 @@ def create_ranking_chart_plotly(ranking_df):
 
 
 # 4 Chart creation functions ##########################################
-def create_performance_radar_plotly(metrics_for_radar):
-    """Create performance radar chart with Plotly"""
+def create_performance_radar_plotly(metrics_for_radar, color_map: dict) -> go.Figure:
+    """Create performance radar chart with Plotly."""
     fig = go.Figure()
 
     categories = [
@@ -399,7 +359,7 @@ def create_performance_radar_plotly(metrics_for_radar):
                 theta=categories + [categories[0]],
                 fill="toself",
                 name=player_data["Player"],
-                line=dict(width=5),
+                line=dict(width=5, color=color_map.get(player_data["Player"])),
                 opacity=0.7,
                 hoverlabel=dict(bgcolor="lightgrey", font_color="black"),
             )
@@ -430,8 +390,8 @@ def create_performance_radar_plotly(metrics_for_radar):
     return fig
 
 
-def create_performance_radar_streamlit(metrics_for_radar):
-    """Create performance metrics with Streamlit native"""
+def create_performance_radar_streamlit(metrics_for_radar, color_map: dict) -> None:
+    """Create performance metrics with Streamlit native."""
     st.subheader("Multi-Dimensional Performance (Area Chart)")
 
     # Create a DataFrame for easier visualization
@@ -450,20 +410,7 @@ def create_performance_radar_streamlit(metrics_for_radar):
 
     # Create area chart with transparency using RGBA colors
     # Generate RGBA colors with alpha=0.6 for transparency
-    num_players = len(area_chart_data.columns)
-    colors = [
-        (255, 99, 132, 0.8),  # Red with alpha
-        (54, 162, 235, 0.8),  # Blue with alpha
-        (255, 205, 86, 0.8),  # Yellow with alpha
-        (75, 192, 192, 0.8),  # Teal with alpha
-        (153, 102, 255, 0.8),  # Purple with alpha
-        (255, 159, 64, 0.8),  # Orange with alpha
-        (199, 199, 199, 0.8),  # Grey with alpha
-        (83, 102, 255, 0.8),  # Indigo with alpha
-    ]
-
-    # Use only as many colors as needed
-    chart_colors = colors[:num_players]
+    chart_colors = [color_map[p] for p in area_chart_data.columns]
 
     st.area_chart(area_chart_data, height=400, color=chart_colors, stack="normalize")
 
@@ -476,8 +423,8 @@ def create_performance_radar_streamlit(metrics_for_radar):
     )
 
 
-def create_performance_radar_altair(metrics_for_radar):
-    """Create performance radar chart with Altair (as parallel coordinates)"""
+def create_performance_radar_altair(metrics_for_radar, color_map: dict) -> alt.Chart:
+    """Create performance radar chart with Altair (parallel coordinates)."""
     # Convert to long format for Altair
     radar_df = pd.DataFrame(metrics_for_radar)
     categories = [
@@ -511,7 +458,9 @@ def create_performance_radar_altair(metrics_for_radar):
             ),
             color=alt.Color(
                 "Player:N",
-                scale=alt.Scale(scheme="category10"),
+                scale=alt.Scale(
+                    domain=list(color_map.keys()), range=list(color_map.values())
+                ),
                 legend=alt.Legend(labelColor="black", titleColor="black"),
             ),
             tooltip=["Player:N", "Metric:N", "Value:Q"],
@@ -574,6 +523,11 @@ def create_heatmap_plotly(h2h_matrix):
 st.markdown("#### _well well well.... who should be thrown under the bus..???_")
 ut.h_spacer(2)
 # Calculate comprehensive statistics
+if st.session_state.get("refresh_statistics"):
+    calculate_comprehensive_stats.clear()  # type: ignore
+    get_game_scores_with_rankings.clear()  # type: ignore
+    st.session_state.refresh_statistics = False
+
 stats_result = calculate_comprehensive_stats()
 
 if stats_result is None:
@@ -587,6 +541,7 @@ if stats_result is None:
     st.markdown("- 📊 Beautiful interactive charts")
 else:
     player_stats, scores_df, total_games, total_age, age_games = stats_result
+    color_map = assign_player_colors(player_stats.keys())
 
     # 1. CUMULATIVE POINTS DEVELOPMENT CHART ###################################
     st.subheader("📈 Cumulative Score Progression")
@@ -612,7 +567,7 @@ else:
     if cumulative_data:
         cumulative_df = pd.DataFrame(cumulative_data)
 
-        fig_cumulative = create_cumulative_chart(cumulative_df)
+        fig_cumulative = create_cumulative_chart(cumulative_df, color_map)
         st.plotly_chart(fig_cumulative, use_container_width=True)
 
     st.markdown("---")
@@ -628,7 +583,7 @@ else:
     wins_data.sort(key=lambda x: x[1], reverse=True)
     wins_df = pd.DataFrame(wins_data, columns=["Player", "Wins"])
 
-    chart_wins = create_wins_chart(wins_df)
+    chart_wins = create_wins_chart(wins_df, color_map)
     st.altair_chart(chart_wins, use_container_width=True)
 
     # Additional win statistics
@@ -671,7 +626,7 @@ else:
         ranking_data, columns=["Player", "Total Points", "Avg Points"]
     )
 
-    fig_ranking = create_ranking_chart_plotly(ranking_df)
+    fig_ranking = create_ranking_chart_plotly(ranking_df, color_map)
     st.plotly_chart(fig_ranking, use_container_width=True)
 
     st.markdown("---")
@@ -692,14 +647,12 @@ else:
 
     # Normalize metrics for radar chart (0-100 scale)
     metrics_for_radar = []
-    for name, stats in player_stats.items():
-        # Normalize each metric to 0-100 scale
-        max_total_score = max(s["total_score"] for s in player_stats.values())
-        max_win_rate = max(s["win_rate"] for s in player_stats.values())
-        max_podium_rate = max(s["podium_rate"] for s in player_stats.values())
-        min_avg_rank = min(s["avg_rank"] for s in player_stats.values())
-        max_avg_rank = max(s["avg_rank"] for s in player_stats.values())
 
+    max_total_score = max(s["total_score"] for s in player_stats.values())
+    min_avg_rank = min(s["avg_rank"] for s in player_stats.values())
+    max_avg_rank = max(s["avg_rank"] for s in player_stats.values())
+
+    for name, stats in player_stats.items():
         metrics_for_radar.append(
             {
                 "Player": name,
@@ -714,12 +667,12 @@ else:
         )
 
     if radar_style == "Interactive (Plotly)":
-        fig_radar = create_performance_radar_plotly(metrics_for_radar)
+        fig_radar = create_performance_radar_plotly(metrics_for_radar, color_map)
         st.plotly_chart(fig_radar, use_container_width=True)
     elif radar_style == "Simple (Streamlit)":
-        create_performance_radar_streamlit(metrics_for_radar)
+        create_performance_radar_streamlit(metrics_for_radar, color_map)
     else:
-        chart_radar = create_performance_radar_altair(metrics_for_radar)
+        chart_radar = create_performance_radar_altair(metrics_for_radar, color_map)
         st.altair_chart(chart_radar, use_container_width=True)
 
     # Detailed statistics table
