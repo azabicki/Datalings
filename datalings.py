@@ -20,11 +20,11 @@ ut.create_sidebar()
 # consistent player colors (slightly darker tones on green background)
 PLAYER_COLORS = [
     "#cc8a8a",
-    "#ccab84",
-    "#a1cc98",
-    "#7cc4cc",
-    "#809ccc",
+    "#c9a275",
     "#978ecc",
+    "#56c2ce",
+    "#809ccc",
+    "#a1cc98",
 ]
 
 
@@ -47,41 +47,6 @@ def darken_color(hex_color: str, factor: float = 0.85) -> str:
     g = int(g * factor)
     b = int(b * factor)
     return f"#{r:02x}{g:02x}{b:02x}"
-
-
-# Custom CSS for better styling
-st.markdown(
-    """
-<style>
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: white;
-        margin: 0.5rem 0;
-    }
-    .winner-card {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: white;
-        margin: 0.5rem 0;
-        text-align: center;
-    }
-    .stMetric > label {
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
-    }
-    .chart-style-selector {
-        background-color: #f0f2f6;
-        padding: 0.5rem;
-        border-radius: 0.25rem;
-        margin-bottom: 1rem;
-    }
-</style>
-""",
-    unsafe_allow_html=True,
-)
 
 
 @st.cache_data(ttl=300)
@@ -185,21 +150,17 @@ def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.
         y="Cumulative Score",
         color="Player",
         color_discrete_map=color_map,
-        title="Cumulative Score Development (Interactive)",
-        markers=True,
+        markers=False,
         hover_data=["Game Date"],
     )
 
     fig.update_layout(
-        height=500,
+        height=400,
+        title="",
         xaxis_title="Game Number",
         yaxis_title="Cumulative Score",
         hovermode="x unified",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
         showlegend=True,
-        font=dict(color="black"),
-        xaxis=dict(dtick=1),
         modebar=dict(
             remove=[
                 "pan2d",
@@ -222,7 +183,9 @@ def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.
     return fig
 
 
-def create_total_points_bar_chart(total_points_df: pd.DataFrame, color_map: dict) -> go.Figure:
+def create_total_points_bar_chart(
+    total_points_df: pd.DataFrame, color_map: dict
+) -> go.Figure:
     """Create total points bar chart."""
     fig = px.bar(
         total_points_df,
@@ -230,18 +193,14 @@ def create_total_points_bar_chart(total_points_df: pd.DataFrame, color_map: dict
         y="Total Score",
         color="Player",
         color_discrete_map=color_map,
-        title="Total Points by Player (Interactive)",
     )
 
     fig.update_layout(
-        height=500,
-        xaxis_title="Player",
+        height=400,
+        xaxis_title="",
         yaxis_title="Total Points",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
         font=dict(color="black"),
         xaxis=dict(categoryorder="total descending"),
-        yaxis=dict(dtick=1),
         showlegend=False,
         modebar=dict(
             remove=[
@@ -338,7 +297,9 @@ def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.F
                 marker_color=color,
                 offsetgroup="win",
                 hovertemplate=f"{row['Player']} Win Rate: {row['Win Rate']:.1f}%<extra></extra>",
-                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+                hoverlabel=dict(
+                    bgcolor="lightyellow", font_size=14, font_color="black"
+                ),
             )
         )
         fig.add_trace(
@@ -349,7 +310,9 @@ def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.F
                 marker_color=darker,
                 offsetgroup="podium",
                 hovertemplate=f"{row['Player']} Podium Rate: {row['Podium Rate']:.1f}%<extra></extra>",
-                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+                hoverlabel=dict(
+                    bgcolor="lightyellow", font_size=14, font_color="black"
+                ),
             )
         )
 
@@ -443,7 +406,7 @@ def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go
         ),
     )
 
-    fig.update_yaxes(dtick=1, row=1, col=1)
+    fig.update_yaxes(row=1, col=1)
 
     return fig
 
@@ -473,7 +436,9 @@ def create_performance_radar_plotly(metrics_for_radar, color_map: dict) -> go.Fi
                 name=player_data["Player"],
                 line=dict(width=5, color=color_map.get(player_data["Player"])),
                 opacity=0.7,
-                hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+                hoverlabel=dict(
+                    bgcolor="lightyellow", font_size=14, font_color="black"
+                ),
             )
         )
 
@@ -627,7 +592,9 @@ def create_heatmap_plotly(h2h_matrix):
     )
 
     fig.update_coloraxes(showscale=False)
-    fig.update_traces(hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"))
+    fig.update_traces(
+        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black")
+    )
 
     return fig
 
@@ -657,7 +624,7 @@ else:
     color_map = assign_player_colors(player_stats.keys())
 
     # 1. CUMULATIVE POINTS DEVELOPMENT CHART ###################################
-    st.subheader("📈 Cumulative Score Progression")
+    st.subheader("📈 Current Standing")
     st.markdown("*Track how each player's total score develops over time*")
 
     # Prepare data for cumulative chart
@@ -680,25 +647,28 @@ else:
     if cumulative_data:
         cumulative_df = pd.DataFrame(cumulative_data)
 
-        chart_options = ["Line", "Bar"]
-        if hasattr(st, "segmented_control"):
-            chart_type = st.segmented_control("Chart type", chart_options, key="cum_chart")
-        else:
-            chart_type = st.radio("Chart type", chart_options, horizontal=True, key="cum_chart")
+        chart_options = ["Total Score", "Time Series"]
+        chart_type = st.segmented_control(
+            "Chart type",
+            chart_options,
+            key="cum_chart",
+            default="Total Score",
+            label_visibility="collapsed",
+        )
 
-        if chart_type == "Line":
-            fig_cumulative = create_cumulative_chart(cumulative_df, color_map)
-            st.plotly_chart(fig_cumulative, use_container_width=True)
-        else:
+        if chart_type == "Total Score":
             total_points_data = [
                 {"Player": name, "Total Score": stats["total_score"]}
                 for name, stats in player_stats.items()
             ]
-            total_points_df = pd.DataFrame(total_points_data).sort_values("Total Score", ascending=False)
+            total_points_df = pd.DataFrame(total_points_data).sort_values(
+                "Total Score", ascending=False
+            )
             fig_points = create_total_points_bar_chart(total_points_df, color_map)
             st.plotly_chart(fig_points, use_container_width=True)
-
-    st.markdown("---")
+        else:
+            fig_cumulative = create_cumulative_chart(cumulative_df, color_map)
+            st.plotly_chart(fig_cumulative, use_container_width=True)
 
     # 2. WIN COUNT CHART #######################################################
     st.subheader("🏅 Victory Statistics")
@@ -875,7 +845,9 @@ else:
                             h2h_matrix.loc[player1, player2] -= 1
                         # If ranks are equal (tie), no change to differential
 
-    players_sorted = sorted(player_stats.keys(), key=lambda p: player_stats[p]["total_score"], reverse=True)
+    players_sorted = sorted(
+        player_stats.keys(), key=lambda p: player_stats[p]["total_score"], reverse=True
+    )
     h2h_matrix = h2h_matrix.loc[players_sorted, players_sorted]
     fig_h2h = create_heatmap_plotly(h2h_matrix)
     st.plotly_chart(fig_h2h, use_container_width=True)
