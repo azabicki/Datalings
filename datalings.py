@@ -157,10 +157,11 @@ def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.
     fig.update_layout(
         height=400,
         title="",
-        xaxis_title="Game Number",
+        xaxis_title="",
         yaxis_title="Cumulative Score",
         hovermode="x unified",
         showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None),
         modebar=dict(
             remove=[
                 "pan2d",
@@ -180,6 +181,8 @@ def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.
         marker=dict(size=10),
         hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
     )
+
+    fig.update_xaxes(tickprefix="Game ")
     return fig
 
 
@@ -193,6 +196,7 @@ def create_total_points_bar_chart(
         y="Total Score",
         color="Player",
         color_discrete_map=color_map,
+        text="Total Score",
     )
 
     fig.update_layout(
@@ -217,8 +221,9 @@ def create_total_points_bar_chart(
     )
 
     fig.update_traces(
-        text=total_points_df["Total Score"],
-        textposition="outside",
+        textposition="inside",
+        insidetextanchor="end",
+        textfont=dict(size=14),
         hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
     )
 
@@ -282,18 +287,49 @@ def create_wins_chart(wins_df: pd.DataFrame, color_map: dict) -> alt.Chart:
     )
 
 
+def create_wins_chart_plotly(wins_df: pd.DataFrame, color_map: dict) -> go.Figure:
+    """Create wins chart with Plotly following the Altair style."""
+    fig = px.bar(
+        wins_df,
+        x="Player",
+        y="Wins",
+        color="Player",
+        color_discrete_map=color_map,
+        text="Wins",
+    )
+
+    fig.update_layout(
+        height=400,
+        title="Total Wins by Player",
+        xaxis_title="Player",
+        yaxis_title="Total Wins",
+        xaxis=dict(categoryorder="total descending"),
+        showlegend=False,
+        font=dict(color="black"),
+    )
+
+    fig.update_traces(
+        textposition="inside",
+        insidetextanchor="end",
+        textfont=dict(size=12),
+        hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
+    )
+
+    return fig
+
+
 def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.Figure:
     """Create win rate & podium rate grouped bar chart."""
     fig = go.Figure()
 
-    for idx, row in rate_df.iterrows():
+    for _, row in rate_df.iterrows():
         color = color_map.get(row["Player"], None)
         darker = darken_color(color)
         fig.add_trace(
             go.Bar(
                 x=[row["Player"]],
                 y=[row["Win Rate"]],
-                name="Win Rate" if idx == 0 else None,
+                showlegend=False,
                 marker_color=color,
                 offsetgroup="win",
                 hovertemplate=f"{row['Player']} Win Rate: {row['Win Rate']:.1f}%<extra></extra>",
@@ -306,7 +342,7 @@ def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.F
             go.Bar(
                 x=[row["Player"]],
                 y=[row["Podium Rate"]],
-                name="Podium Rate" if idx == 0 else None,
+                showlegend=False,
                 marker_color=darker,
                 offsetgroup="podium",
                 hovertemplate=f"{row['Player']} Podium Rate: {row['Podium Rate']:.1f}%<extra></extra>",
@@ -315,6 +351,26 @@ def create_win_rate_podium_chart(rate_df: pd.DataFrame, color_map: dict) -> go.F
                 ),
             )
         )
+
+    # Legend items with grey colors
+    fig.add_trace(
+        go.Bar(
+            x=[None],
+            y=[None],
+            name="Win Rate",
+            marker_color="lightgray",
+            showlegend=True,
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            x=[None],
+            y=[None],
+            name="Podium Rate",
+            marker_color="gray",
+            showlegend=True,
+        )
+    )
 
     fig.update_layout(
         barmode="group",
@@ -681,8 +737,8 @@ else:
     wins_data.sort(key=lambda x: x[1], reverse=True)
     wins_df = pd.DataFrame(wins_data, columns=["Player", "Wins"])
 
-    chart_wins = create_wins_chart(wins_df, color_map)
-    st.altair_chart(chart_wins, use_container_width=True)
+    chart_wins = create_wins_chart_plotly(wins_df, color_map)
+    st.plotly_chart(chart_wins, use_container_width=True)
 
     # Win rate vs podium rate chart
     rate_data = [
