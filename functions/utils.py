@@ -78,7 +78,7 @@ def create_sidebar() -> None:
     if st.session_state["authentication_status"]:
         authenticator = st.session_state["auth"]
         authenticator.logout(
-            button_name=f"logout {st.session_state.get("username")}",
+            button_name=f"logout {st.session_state.get('username')}",
             location="sidebar",
             use_container_width=True,
         )

@@ -362,13 +362,31 @@ def create_victory_statistics_figure(
 
 
 # 3 Chart creation functions ##########################################
-def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go.Figure:
-    """Create ranking points chart with Plotly."""
+def create_ranking_chart_plotly(
+    ranking_df: pd.DataFrame, color_map: dict, show_avg: bool = True
+) -> go.Figure:
+    """Create ranking points chart with Plotly.
+
+    Parameters
+    ----------
+    ranking_df : pd.DataFrame
+        DataFrame containing the players and their total/average points.
+    color_map : dict
+        Mapping of player names to bar colors.
+    show_avg : bool, optional
+        If ``True`` also show the average points subplot.
+    """
+
+    cols = 2 if show_avg else 1
+    titles = ["Total Ranking Points"]
+    if show_avg:
+        titles.append("Average Points per Game")
+
     fig = make_subplots(
         rows=1,
-        cols=2,
-        subplot_titles=("Total Ranking Points", "Average Points per Game"),
-        specs=[[{"secondary_y": False}, {"secondary_y": False}]],
+        cols=cols,
+        subplot_titles=tuple(titles),
+        specs=[[{"secondary_y": False} for _ in range(cols)]],
     )
 
     # Total points bar chart
@@ -388,21 +406,23 @@ def create_ranking_chart_plotly(ranking_df: pd.DataFrame, color_map: dict) -> go
         col=1,
     )
 
-    # Average points bar chart
-    fig.add_trace(
-        go.Bar(
-            x=ranking_df["Player"],
-            y=ranking_df["Avg Points"],
-            name="Avg Points",
-            marker_color=colors,
-            text=[f"{x:.1f}" for x in ranking_df["Avg Points"]],
-            textposition="inside",
-            textfont=dict(color="black"),
-            hoverlabel=dict(bgcolor="lightyellow", font_size=14, font_color="black"),
-        ),
-        row=1,
-        col=2,
-    )
+    if show_avg:
+        fig.add_trace(
+            go.Bar(
+                x=ranking_df["Player"],
+                y=ranking_df["Avg Points"],
+                name="Avg Points",
+                marker_color=colors,
+                text=[f"{x:.1f}" for x in ranking_df["Avg Points"]],
+                textposition="inside",
+                textfont=dict(color="black"),
+                hoverlabel=dict(
+                    bgcolor="lightyellow", font_size=14, font_color="black"
+                ),
+            ),
+            row=1,
+            col=2,
+        )
 
     fig.update_layout(
         height=450,
@@ -667,15 +687,27 @@ else:
 
     # Create ranking points data
     ranking_data = [
-        (name, stats["total_ranking_points"], stats["avg_ranking_points"])
+        (
+            name,
+            stats["total_ranking_points"],
+            stats["avg_ranking_points"],
+            stats["games_played"],
+        )
         for name, stats in player_stats.items()
     ]
     ranking_data.sort(key=lambda x: x[1], reverse=True)
     ranking_df = pd.DataFrame(
-        ranking_data, columns=["Player", "Total Points", "Avg Points"]
+        ranking_data,
+        columns=["Player", "Total Points", "Avg Points", "Games Played"],
     )
 
-    fig_ranking = create_ranking_chart_plotly(ranking_df, color_map)
+    equal_games = len(set(ranking_df["Games Played"])) == 1
+
+    fig_ranking = create_ranking_chart_plotly(
+        ranking_df.drop(columns="Games Played"),
+        color_map,
+        show_avg=not equal_games,
+    )
     st.plotly_chart(fig_ranking, use_container_width=True)
 
     # 4: Head-to-Head Performance Matrix #######################################
