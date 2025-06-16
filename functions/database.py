@@ -244,20 +244,6 @@ def update_player_name_in_database(player_id: int, new_name: str) -> bool:
         return False
 
 
-def player_exists_in_database(name: str) -> bool:
-    """Check if a player with the given name exists."""
-    conn = st.connection("mysql", type="sql")
-    try:
-        result = conn.query(
-            "SELECT COUNT(*) as count FROM datalings_players WHERE name = :name",
-            params={"name": name},
-            ttl=60,
-        )
-        return result["count"].iloc[0] > 0
-    except Exception as e:
-        logger.error(f"Error checking if player exists: {e}")
-        return False
-
 
 def get_all_game_settings() -> pd.DataFrame:
     """Get all game settings from the database ordered by position."""
@@ -481,25 +467,6 @@ def game_setting_exists_except_id(name: str, setting_id: int) -> bool:
         logger.error(f"Error checking if game setting exists: {e}")
         return False
 
-
-def update_setting_position(setting_id: int, new_position: int) -> bool:
-    """Update the position of a game setting."""
-    conn = st.connection("mysql", type="sql")
-    try:
-        with conn.session as session:
-            session.execute(
-                text(
-                    "UPDATE datalings_game_settings SET position = :position WHERE id = :id"
-                ),
-                {"position": new_position, "id": setting_id},
-            )
-            session.commit()
-        logger.info(f"Setting ID {setting_id} position updated to {new_position}")
-        return True
-    except Exception as e:
-        logger.error(f"Error updating setting position: {e}")
-        st.error(f"Error updating setting position: {e}")
-        return False
 
 
 def move_setting_up(setting_id: int) -> bool:
@@ -761,82 +728,6 @@ def get_all_games() -> pd.DataFrame:
         st.error(f"Error fetching games: {e}")
         return pd.DataFrame()
 
-
-def get_game_details(game_id: int) -> dict:
-    """Get detailed information about a specific game."""
-    conn = st.connection("mysql", type="sql")
-    try:
-        # Get player scores
-        scores_df = conn.query(
-            """
-            SELECT s.player_id, p.name as player_name, s.score
-            FROM datalings_game_scores s
-            JOIN datalings_players p ON s.player_id = p.id
-            WHERE s.game_id = :game_id
-            ORDER BY s.score DESC
-        """,
-            params={"game_id": game_id},
-            ttl=0,
-        )
-
-        # Get setting values (ordered by setting creation order to maintain consistency)
-        settings_df = conn.query(
-            """
-            SELECT sv.setting_id, gs.name as setting_name, gs.type as setting_type, gs.position,
-                   sv.value_text, sv.value_number, sv.value_boolean, sv.value_time_minutes
-            FROM datalings_game_setting_values sv
-            JOIN datalings_game_settings gs ON sv.setting_id = gs.id
-            WHERE sv.game_id = :game_id
-            ORDER BY gs.position
-        """,
-            params={"game_id": game_id},
-            ttl=0,
-        )
-
-        # Format the results
-        result = {"scores": [], "settings": []}
-
-        # Process scores
-        if len(scores_df) > 0:
-            for _, score_row in scores_df.iterrows():
-                result["scores"].append(
-                    {
-                        "player_id": int(score_row["player_id"]),
-                        "player_name": str(score_row["player_name"]),
-                        "score": int(score_row["score"]),
-                    }
-                )
-
-        # Process settings
-        if len(settings_df) > 0:
-            for _, setting_row in settings_df.iterrows():
-                setting_type = str(setting_row["setting_type"])
-
-                # Get the appropriate value based on type
-                if setting_type == "list":
-                    value = str(setting_row["value_text"])
-                elif setting_type == "number":
-                    value = str(setting_row["value_number"])
-                elif setting_type == "boolean":
-                    value = "True" if setting_row["value_boolean"] == 1 else "False"
-                elif setting_type == "time":
-                    value = str(setting_row["value_time_minutes"])
-                else:
-                    value = ""
-
-                result["settings"].append(
-                    {
-                        "setting_id": int(setting_row["setting_id"]),
-                        "setting_name": str(setting_row["setting_name"]),
-                        "setting_type": setting_type,
-                        "value": value,
-                    }
-                )
-
-        return result
-    except Exception as e:
-        logger.error(f"Error fetching game details for game {game_id}: {e}")
-        return {"scores": [], "settings": []}
 
 
 def update_game_in_database(
