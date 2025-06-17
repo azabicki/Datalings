@@ -246,6 +246,104 @@ def create_cumulative_chart(cumulative_df: pd.DataFrame, color_map: dict) -> go.
     return fig
 
 
+def calculate_avg_score_by_place(scores_df: pd.DataFrame) -> pd.DataFrame:
+    """Return average score per player based on pre-game leaderboard place."""
+    if scores_df.empty:
+        return pd.DataFrame(columns=["Player", "Place", "Avg Score"])
+
+    scores_df = scores_df.sort_values(["game_date", "game_id"])  # type: ignore
+    players = scores_df["player_name"].unique().tolist()
+
+    cumulative_totals = {p: 0 for p in players}
+    players_seen = set()
+    place_scores: dict[str, dict[int, list[int]]] = {p: {} for p in players}
+
+    games = scores_df[["game_id", "game_date"]].drop_duplicates().sort_values([
+        "game_date",
+        "game_id",
+    ])
+
+    first_game = True
+    for _, game in games.iterrows():
+        gid = game["game_id"]
+        game_rows = scores_df[scores_df["game_id"] == gid]
+
+        ranking = sorted(cumulative_totals.items(), key=lambda x: x[1], reverse=True)
+        rank_dict = {player: r + 1 for r, (player, _) in enumerate(ranking)}
+
+        if first_game:
+            first_game = False
+            for _, row in game_rows.iterrows():
+                player = row["player_name"]
+                cumulative_totals[player] += row["score"]
+                players_seen.add(player)
+            continue
+
+        for _, row in game_rows.iterrows():
+            player = row["player_name"]
+            if player not in players_seen:
+                players_seen.add(player)
+                cumulative_totals[player] += row["score"]
+                continue
+
+            place = rank_dict.get(player, len(players) + 1)
+            place_scores[player].setdefault(place, []).append(row["score"])
+            cumulative_totals[player] += row["score"]
+
+    rows = []
+    for player, place_dict in place_scores.items():
+        for place, scores in sorted(place_dict.items()):
+            avg_score = sum(scores) / len(scores)
+            rows.append({"Player": player, "Place": place, "Avg Score": avg_score})
+
+    return pd.DataFrame(rows)
+
+
+def create_avg_score_by_place_chart(avg_df: pd.DataFrame, color_map: dict) -> go.Figure:
+    """Create average score by leaderboard place line chart."""
+    fig = px.line(
+        avg_df,
+        x="Place",
+        y="Avg Score",
+        color="Player",
+        color_discrete_map=color_map,
+        markers=True,
+    )
+
+    fig.update_layout(
+        height=400,
+        xaxis_title="Leaderboard Place",
+        yaxis_title="Average Score",
+        hovermode="x unified",
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            title=None,
+            font_size=14,
+        ),
+        modebar=dict(
+            remove=[
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoom2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+            ]
+        ),
+    )
+
+    fig.update_traces(line=dict(width=5))
+
+    return fig
+
+
 # 2 Chart creation functions ##########################################
 def create_victory_statistics_figure(
     wins_df: pd.DataFrame, rate_df: pd.DataFrame, color_map: dict
@@ -649,6 +747,12 @@ else:
         else:
             fig_cumulative = create_cumulative_chart(cumulative_df, color_map)
             st.plotly_chart(fig_cumulative, use_container_width=True)
+
+        avg_df = calculate_avg_score_by_place(scores_df)
+        if not avg_df.empty:
+            st.markdown("**Average Score by Pre-Game Leaderboard Place**")
+            fig_avg_place = create_avg_score_by_place_chart(avg_df, color_map)
+            st.plotly_chart(fig_avg_place, use_container_width=True)
 
     # 2. WIN COUNT CHART #######################################################
     st.markdown("---")
