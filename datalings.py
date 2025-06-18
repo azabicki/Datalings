@@ -382,7 +382,7 @@ def create_victory_statistics_figure(
                 y=[row["Win Rate"]],
                 marker_color=color,
                 offsetgroup="win",
-                hovertemplate=f"{row['Player']} Win Rate: {row['Win Rate']:.1f}%<extra></extra>",
+                hovertemplate=f"Win Rate: {row['Win Rate']:.1f}%<extra></extra>",
                 hoverlabel=dict(
                     bgcolor="lightyellow", font_size=14, font_color="black"
                 ),
@@ -397,7 +397,7 @@ def create_victory_statistics_figure(
                 y=[row["Podium Rate"]],
                 marker_color=darker,
                 offsetgroup="podium",
-                hovertemplate=f"{row['Player']} Podium Rate: {row['Podium Rate']:.1f}%<extra></extra>",
+                hovertemplate=f"Podium Rate: {row['Podium Rate']:.1f}%<extra></extra>",
                 hoverlabel=dict(
                     bgcolor="lightyellow", font_size=14, font_color="black"
                 ),
